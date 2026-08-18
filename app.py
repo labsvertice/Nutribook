@@ -135,39 +135,41 @@ else:
                 st.session_state.etapa = 5
                 st.rerun()
 
-    # --- ETAPA 5 & 6: ESTRUTURA E DIREÇÃO VISUAL ---
+   # --- ETAPA 5 & 6: ESTRUTURA E DIREÇÃO VISUAL ---
     elif st.session_state.etapa == 5:
         modulo_produto = importlib.import_module(MAPA_PRODUTOS[st.session_state.produto])
         base_conhecimento = modulo_produto.CONHECIMENTO
 
         st.subheader("ETAPA 5 & 6: Estrutura Estratégica e Direção Visual")
 
-        with st.spinner("Construindo narrativa de alta retenção com base nas regras..."):
-            prompt_estrutura = f"""
-            Você é o motor da Plataforma Vértice para o especialista Jean Victor.
-            Tema: '{st.session_state.ideia_escolhida}'
-            Formato: {st.session_state.formato} ({st.session_state.num_paginas} páginas/slides se carrossel)
-            
-            BASE DE CONHECIMENTO E REGRAS DO PRODUTO:
-            {base_conhecimento}
-            
-            Regras de Copy:
-            - Identifique a Categoria e Objetivo (Atrair, Ensinar ou Fortalecer autoridade).
-            - Headline dominante com máximo 12 a 18 palavras NO TOTAL da arte.
-            - Predomínio de caixa baixa (70% caixa baixa / 30% caixa alta em termos estratégicos).
-            - Tensão, provocação e corte de 50% de textos desnecessários.
-            - OBRIGATÓRIO: Forneça a HEADLINE exata da capa/arte.
-            - OBRIGATÓRIO: Forneça a LEGENDA completa finalizando rigorosamente com o JARGÃO/CTA OBRIGATÓRIO indicado na base de conhecimento.
-            """
-            
-            if not st.session_state.headline_gerada:
+        # Gera o conteúdo do Gemini apenas UMA vez e salva no estado
+        if "estrutura_rascunho" not in st.session_state or not st.session_state.estrutura_rascunho:
+            with st.spinner("Construindo narrativa de alta retenção com base nas regras..."):
+                prompt_estrutura = f"""
+                Você é o motor da Plataforma Vértice para o especialista Jean Victor.
+                Tema: '{st.session_state.ideia_escolhida}'
+                Formato: {st.session_state.formato} ({st.session_state.num_paginas} páginas/slides se carrossel)
+                
+                BASE DE CONHECIMENTO E REGRAS DO PRODUTO:
+                {base_conhecimento}
+                
+                Regras de Copy:
+                - Identifique a Categoria e Objetivo (Atrair, Ensinar ou Fortalecer autoridade).
+                - Headline dominante com máximo 12 a 18 palavras NO TOTAL da arte.
+                - Predomínio de caixa baixa (70% caixa baixa / 30% caixa alta em termos estratégicos).
+                - Tensão, provocação e corte de 50% de textos desnecessários.
+                - OBRIGATÓRIO: Forneça a HEADLINE exata da capa/arte.
+                - OBRIGATÓRIO: Forneça a LEGENDA completa finalizando rigorosamente com o JARGÃO/CTA OBRIGATÓRIO indicado na base de conhecimento.
+                """
                 try:
                     res = model_gemini.generate_content(prompt_estrutura)
-                    conteudo = res.text
-                    st.markdown(conteudo)
-                    st.session_state.estrutura_rascunho = conteudo
+                    st.session_state.estrutura_rascunho = res.text
                 except Exception as err:
                     st.error(f"Erro na conexão com o Gemini (Etapa 5): {err}")
+
+        # Exibe o conteúdo armazenado no estado
+        if "estrutura_rascunho" in st.session_state and st.session_state.estrutura_rascunho:
+            st.markdown(st.session_state.estrutura_rascunho)
 
         st.divider()
         st.subheader("ETAPA 7: Validação de Segurança")
@@ -181,7 +183,7 @@ else:
                 st.rerun()
         with col2:
             if st.button("❌ Refazer Estrutura"):
-                st.session_state.headline_gerada = ""
+                st.session_state.estrutura_rascunho = None
                 st.rerun()
 
     # --- ETAPA 8: EXECUÇÃO VISUAL (FLUX.1 [DEV]) ---
