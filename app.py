@@ -119,7 +119,7 @@ else:
                     Não use linguagem genérica, motivacional ou professoral.
                     """
                     res = client_gemini.models.generate_content(
-                        model="gemini-1.5-flash",
+                        model="gemini-2.5-flash",
                         contents=prompt_ideias,
                     )
                     st.markdown(res.text)
@@ -160,7 +160,7 @@ else:
             
             if not st.session_state.headline_gerada:
                 res = client_gemini.models.generate_content(
-                    model="gemini-1.5-flash",
+                    model="gemini-2.5-flash",
                     contents=prompt_estrutura,
                 )
                 conteudo = res.text
