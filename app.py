@@ -1,5 +1,5 @@
 import streamlit as st
-from google import genai
+import google.generativeai as genai
 import replicate
 import importlib
 
@@ -22,7 +22,9 @@ st.caption("Motor Estratégico de Conteúdo Premium — Jean Victor")
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 REPLICATE_API_TOKEN = st.secrets.get("REPLICATE_API_TOKEN", "")
 
-client_gemini = genai.Client(api_key=GEMINI_API_KEY)
+# Configura o Gemini com a API Key
+genai.configure(api_key=GEMINI_API_KEY)
+model_gemini = genai.GenerativeModel("gemini-1.5-flash")
 
 # --- CARREGA CONFIGURAÇÃO VISUAL DO PERFIL ---
 try:
@@ -93,7 +95,7 @@ else:
         if st.session_state.formato == "Carrossel (4:5)":
             paginas = st.number_input("ETAPA 3: Quantidade de páginas do carrossel:", min_value=3, max_value=10, value=5)
 
-        if st.button("Avançar para Ideation"):
+        if st.button("Avançar para Ideação"):
             st.session_state.opcao_ideia = op
             st.session_state.num_paginas = paginas
             st.session_state.etapa = 4
@@ -119,10 +121,7 @@ else:
                     Não use linguagem genérica, motivacional ou professoral.
                     """
                     try:
-                        res = client_gemini.models.generate_content(
-                            model="gemini-2.0-flash",
-                            contents=prompt_ideias,
-                        )
+                        res = model_gemini.generate_content(prompt_ideias)
                         st.markdown(res.text)
                     except Exception as err:
                         st.error(f"Erro na conexão com o Gemini (Etapa 4): {err}")
@@ -163,10 +162,7 @@ else:
             
             if not st.session_state.headline_gerada:
                 try:
-                    res = client_gemini.models.generate_content(
-                        model="gemini-2.0-flash",
-                        contents=prompt_estrutura,
-                    )
+                    res = model_gemini.generate_content(prompt_estrutura)
                     conteudo = res.text
                     st.markdown(conteudo)
                     st.session_state.estrutura_rascunho = conteudo
