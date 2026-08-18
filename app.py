@@ -93,7 +93,7 @@ else:
         if st.session_state.formato == "Carrossel (4:5)":
             paginas = st.number_input("ETAPA 3: Quantidade de páginas do carrossel:", min_value=3, max_value=10, value=5)
 
-        if st.button("Avançar para Ideação"):
+        if st.button("Avançar para Ideation"):
             st.session_state.opcao_ideia = op
             st.session_state.num_paginas = paginas
             st.session_state.etapa = 4
@@ -118,11 +118,14 @@ else:
                     Distribua entre: Descoberta, Conteúdo Técnico e Posicionamento.
                     Não use linguagem genérica, motivacional ou professoral.
                     """
-                    res = client_gemini.models.generate_content(
-                        model="gemini-2.5-flash",
-                        contents=prompt_ideias,
-                    )
-                    st.markdown(res.text)
+                    try:
+                        res = client_gemini.models.generate_content(
+                            model="gemini-2.0-flash",
+                            contents=prompt_ideias,
+                        )
+                        st.markdown(res.text)
+                    except Exception as err:
+                        st.error(f"Erro na conexão com o Gemini (Etapa 4): {err}")
             
             st.session_state.ideia_escolhida = st.text_input("Cole ou digite a ideia escolhida acima:")
         else:
@@ -159,13 +162,16 @@ else:
             """
             
             if not st.session_state.headline_gerada:
-                res = client_gemini.models.generate_content(
-                    model="gemini-2.5-flash",
-                    contents=prompt_estrutura,
-                )
-                conteudo = res.text
-                st.markdown(conteudo)
-                st.session_state.estrutura_rascunho = conteudo
+                try:
+                    res = client_gemini.models.generate_content(
+                        model="gemini-2.0-flash",
+                        contents=prompt_estrutura,
+                    )
+                    conteudo = res.text
+                    st.markdown(conteudo)
+                    st.session_state.estrutura_rascunho = conteudo
+                except Exception as err:
+                    st.error(f"Erro na conexão com o Gemini (Etapa 5): {err}")
 
         st.divider()
         st.subheader("ETAPA 7: Validação de Segurança")
