@@ -192,27 +192,36 @@ else:
             st.success("O Roteiro para Reels foi concluído na etapa anterior (sem geração de imagem conforme regra).")
         else:
             with st.spinner("Renderizando arte no FLUX.1 [dev] no padrão Vértice..."):
-                prompt_flux = f"""
-                {config_perfil['prompt_visual_flux']}
-                Topic/Headline: '{st.session_state.ideia_escolhida}'.
-                """
+                try:
+                    prompt_flux = f"""
+                    {config_perfil['prompt_visual_flux']}
+                    Topic/Headline: '{st.session_state.ideia_escolhida}'.
+                    """
 
-                rep_client = replicate.Client(api_token=REPLICATE_API_TOKEN)
-                
-                output = rep_client.run(
-                    "black-forest-labs/flux-dev",
-                    input={
-                        "prompt": prompt_flux,
-                        "aspect_ratio": "4:5",
-                        "output_format": "png",
-                        "guidance": 3.5
-                    }
-                )
-                
-                image_url = output[0] if isinstance(output, list) else output
+                    rep_client = replicate.Client(api_token=REPLICATE_API_TOKEN)
+                    
+                    output = rep_client.run(
+                        "black-forest-labs/flux-dev",
+                        input={
+                            "prompt": prompt_flux,
+                            "aspect_ratio": "4:5",
+                            "output_format": "png",
+                            "guidance": 3.5
+                        }
+                    )
+                    
+                    # Trata o retorno da URL da imagem garantindo formato string/link
+                    if isinstance(output, list) and len(output) > 0:
+                        image_url = str(output[0])
+                    else:
+                        image_url = str(output)
 
-                st.image(image_url, caption=f"Arte Final Vértice — Proporção {config_perfil['proporcao']}", use_column_width=True)
-                st.markdown(f"[📥 Baixar Arte em Alta Resolução (PNG)]({image_url})")
+                    # Exibe a imagem usando a sintaxe atualizada do Streamlit
+                    st.image(image_url, caption=f"Arte Final Vértice — Proporção {config_perfil['proporcao']}", use_container_width=True)
+                    st.markdown(f"[📥 Baixar Arte em Alta Resolução (PNG)]({image_url})")
+
+                except Exception as err:
+                    st.error(f"Erro ao gerar a imagem no Replicate: {err}")
 
         st.divider()
         st.subheader("📝 Rascunho & Legenda Estratégica:")
