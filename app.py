@@ -1,5 +1,5 @@
 import streamlit as st
-from openai import OpenAI
+from google import genai
 import replicate
 import importlib
 
@@ -19,10 +19,10 @@ st.title("Plataforma Vértice 🚀")
 st.caption("Motor Estratégico de Conteúdo Premium — Jean Victor")
 
 # --- CHAVES DE API ---
-OPENAI_API_KEY = st.secrets.get("OPENAI_API_KEY", "")
+GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 REPLICATE_API_TOKEN = st.secrets.get("REPLICATE_API_TOKEN", "")
 
-client_openai = OpenAI(api_key=OPENAI_API_KEY)
+client_gemini = genai.Client(api_key=GEMINI_API_KEY)
 
 # --- CARREGA CONFIGURAÇÃO VISUAL DO PERFIL ---
 try:
@@ -101,7 +101,6 @@ else:
 
     # --- ETAPA 4: DEFINIÇÃO DO TEMA ---
     elif st.session_state.etapa == 4:
-        # Importa dinamicamente a base de conhecimento do produto selecionado
         modulo_produto = importlib.import_module(MAPA_PRODUTOS[st.session_state.produto])
         base_conhecimento = modulo_produto.CONHECIMENTO
 
@@ -119,11 +118,11 @@ else:
                     Distribua entre: Descoberta, Conteúdo Técnico e Posicionamento.
                     Não use linguagem genérica, motivacional ou professoral.
                     """
-                    res = client_openai.chat.completions.create(
-                        model="gpt-4o-mini",
-                        messages=[{"role": "user", "content": prompt_ideias}]
+                    res = client_gemini.models.generate_content(
+                        model="gemini-1.5-flash",
+                        contents=prompt_ideias,
                     )
-                    st.markdown(res.choices[0].message.content)
+                    st.markdown(res.text)
             
             st.session_state.ideia_escolhida = st.text_input("Cole ou digite a ideia escolhida acima:")
         else:
@@ -160,11 +159,11 @@ else:
             """
             
             if not st.session_state.headline_gerada:
-                res = client_openai.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role": "user", "content": prompt_estrutura}]
+                res = client_gemini.models.generate_content(
+                    model="gemini-1.5-flash",
+                    contents=prompt_estrutura,
                 )
-                conteudo = res.choices[0].message.content
+                conteudo = res.text
                 st.markdown(conteudo)
                 st.session_state.estrutura_rascunho = conteudo
 
