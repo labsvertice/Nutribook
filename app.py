@@ -22,9 +22,9 @@ st.caption("Motor Estratégico de Conteúdo Premium — Jean Victor")
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 REPLICATE_API_TOKEN = st.secrets.get("REPLICATE_API_TOKEN", "")
 
-# Configura o Gemini com o modelo ativo
+# Configura o Gemini apontando para o alias dinâmico gemini-flash-latest
 genai.configure(api_key=GEMINI_API_KEY)
-model_gemini = genai.GenerativeModel("gemini-2.5-flash")
+model_gemini = genai.GenerativeModel("gemini-flash-latest")
 
 # --- CARREGA CONFIGURAÇÃO VISUAL DO PERFIL ---
 try:
