@@ -349,11 +349,13 @@ else:
             st.success("O Roteiro para Reels foi concluído na etapa anterior.")
         else:
             if not st.session_state.imagem_gerada_url:
-                with st.spinner("Renderizando arte no FLUX.1 [dev] no padrão Vértice (Aguarde de 20s a 30s)..."):
+                with st.spinner("Renderizando arte no FLUX.1 [dev] no padrão Vértice (Aguarde de 15s a 25s)..."):
                     try:
+                        # Trava de prompt visual: fotografia corporativa de alto padrão em inglês
                         prompt_flux = f"""
-                        {config_perfil['prompt_visual_flux']}
-                        Topic/Headline: '{st.session_state.ideia_escolhida}'.
+                        High-end commercial corporate photography. Minimalist executive desk with a glowing sleek laptop display showing modern clean data charts and Business Intelligence dashboards. Deep blue, dark charcoal, and subtle gold accent lighting. Professional studio setting, cinematic atmosphere, hyper-realistic, 8k resolution, sharp focus. Clean, sophisticated, corporate tech aesthetic.
+                        Concept: {st.session_state.ideia_escolhida}.
+                        NO text on image, NO weird masks, NO faces, NO hooded figures, NO surrealism.
                         """
 
                         output = replicate.run(
@@ -362,7 +364,7 @@ else:
                                 "prompt": prompt_flux,
                                 "aspect_ratio": "4:5",
                                 "output_format": "png",
-                                "guidance": 3.5
+                                "guidance": 3.0
                             }
                         )
 
