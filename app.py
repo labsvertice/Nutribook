@@ -6,23 +6,34 @@ import importlib
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Plataforma Vértice 🚀 | Jean Victor", layout="centered")
 
-# Visual escuro premium Vértice
+# Visual escuro premium alinhado à paleta do Instagram (#020b18)
 st.markdown("""
     <style>
-    .stApp { background-color: #0b1120; color: #ffffff; }
+    .stApp { background-color: #020b18; color: #ffffff; }
+    [data-testid="stSidebar"] { background-color: #0a192f; }
     .stButton>button { background-color: #f4c70f; color: #000000; font-weight: bold; border-radius: 6px; width: 100%; height: 48px; border: none; }
     .stSelectbox, .stTextInput, .stRadio { color: #ffffff; }
+    div[data-baseweb="radio"] label { color: #ffffff !important; }
     </style>
 """, unsafe_allow_html=True)
 
-st.title("Plataforma Vértice 🚀")
-st.caption("Motor Estratégico de Conteúdo Premium — Jean Victor")
+# --- LOGO & TÍTULO ---
+col_logo, col_titulo = st.columns([1, 4])
+with col_logo:
+    try:
+        st.image("logo.png", width=90)
+    except Exception:
+        st.write("🚀")
+
+with col_titulo:
+    st.title("Plataforma Vértice 🚀")
+    st.caption("Motor Estratégico de Conteúdo Premium — Jean Victor")
 
 # --- CHAVES DE API ---
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 REPLICATE_API_TOKEN = st.secrets.get("REPLICATE_API_TOKEN", "")
 
-# Configura o Gemini apontando para o alias dinâmico gemini-flash-latest
+# Configura o Gemini com alias dinâmico
 genai.configure(api_key=GEMINI_API_KEY)
 model_gemini = genai.GenerativeModel("gemini-flash-latest")
 
@@ -42,7 +53,7 @@ MAPA_PRODUTOS = {
     "5️⃣ Nutribook": "profiles.jean_victor.nutribook"
 }
 
-# --- ESTADOS DO FLUXO (ETAPAS 1 A 8) ---
+# --- ESTADOS DO FLUXO ---
 if "etapa" not in st.session_state:
     st.session_state.etapa = 1
 if "formato" not in st.session_state:
@@ -55,21 +66,27 @@ if "num_paginas" not in st.session_state:
     st.session_state.num_paginas = 1
 if "ideia_escolhida" not in st.session_state:
     st.session_state.ideia_escolhida = ""
-if "estrutura_aprovada" not in st.session_state:
-    st.session_state.estrutura_aprovada = False
-if "headline_gerada" not in st.session_state:
-    st.session_state.headline_gerada = ""
+if "ideias_lista" not in st.session_state:
+    st.session_state.ideias_lista = []
+if "estrutura_rascunho" not in st.session_state:
+    st.session_state.estrutura_rascunho = None
 
-# --- PAINEL REINICIAR ---
-if st.sidebar.button("🔄 Iniciar Novo Conteúdo"):
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
-    st.rerun()
+# --- PAINEL SIDEBAR ---
+with st.sidebar:
+    try:
+        st.image("logo.png", use_container_width=True)
+    except Exception:
+        pass
+    st.write("---")
+    if st.button("🔄 Iniciar Novo Conteúdo"):
+        for key in list(st.session_state.keys()):
+            del st.session_state[key]
+        st.rerun()
 
-# --- PASSO 0: FORMATO (PERMANENTE) ---
+# --- PASSO 0: FORMATO (TELA INICIAL) ---
 if st.session_state.formato is None:
-    st.subheader("Qual formato de conteúdo você deseja criar?")
-    fmt = st.radio("Selecione:", ["Post Único (4:5)", "Carrossel (4:5)", "Reels (Apenas Roteiro)"])
+    st.subheader("Olá Jean Victor! O que vamos criar hoje?")
+    fmt = st.radio("Selecione o formato:", ["Post Único (4:5)", "Carrossel (4:5)", "Reels (Apenas Roteiro)"])
     if st.button("Confirmar Formato"):
         st.session_state.formato = fmt
         st.rerun()
@@ -86,10 +103,10 @@ else:
             st.session_state.etapa = 2
             st.rerun()
 
-    # --- ETAPA 2 & 3: IDEIA E PÁGINAS ---
+    # --- ETAPA 2 & 3: ORIGEM DA IDEIA ---
     elif st.session_state.etapa == 2:
         st.subheader("ETAPA 2: Origem da Ideia")
-        op = st.radio("Como deseja prosseguir?", ["1️⃣ Já tenho ideia", "2️⃣ Quero sugestões estratégicas"])
+        op = st.radio("Como deseja prosseguir?", ["1️⃣ Já tenho ideia", "2️⃣ Quero ideias estratégicas"])
         
         paginas = 1
         if st.session_state.formato == "Carrossel (4:5)":
@@ -101,14 +118,14 @@ else:
             st.session_state.etapa = 4
             st.rerun()
 
-    # --- ETAPA 4: DEFINIÇÃO DO TEMA ---
+    # --- ETAPA 4: DEFINIÇÃO DO CONTEÚDO ---
     elif st.session_state.etapa == 4:
         modulo_produto = importlib.import_module(MAPA_PRODUTOS[st.session_state.produto])
         base_conhecimento = modulo_produto.CONHECIMENTO
 
         st.subheader(f"ETAPA 4: Definição do Conteúdo — {st.session_state.produto}")
         
-        if st.session_state.opcao_ideia == "2️⃣ Quero sugestões estratégicas":
+        if st.session_state.opcao_ideia == "2️⃣ Quero ideias estratégicas":
             if st.button("💡 Gerar 5 Ideias Estratégicas"):
                 with st.spinner("Analisando base de conhecimento do produto..."):
                     prompt_ideias = f"""
@@ -116,39 +133,45 @@ else:
                     Base de Conhecimento do Produto:
                     {base_conhecimento}
 
-                    Gere 5 ideias curtas, provocativas e de alto impacto respeitando 100% as restrições obrigatórias.
-                    Distribua entre: Descoberta, Conteúdo Técnico e Posicionamento.
-                    Não use linguagem genérica, motivacional ou professoral.
+                    Gere exatamente 5 ideias curtas, provocativas e de alto impacto respeitando 100% as restrições obrigatórias.
+                    Responda estritamente em formato de lista numerada simples (1. Ideia, 2. Ideia...).
                     """
                     try:
                         res = model_gemini.generate_content(prompt_ideias)
-                        st.markdown(res.text)
+                        linhas = [line.strip() for line in res.text.split("\n") if line.strip() and line.strip()[0].isdigit()]
+                        st.session_state.ideias_lista = linhas if len(linhas) > 0 else [res.text]
                     except Exception as err:
                         st.error(f"Erro na conexão com o Gemini (Etapa 4): {err}")
-            
-            st.session_state.ideia_escolhida = st.text_input("Cole ou digite a ideia escolhida acima:")
+
+            if st.session_state.ideias_lista:
+                st.write("---")
+                st.write("**Clique na ideia escolhida para avançar:**")
+                for i, idx_ideia in enumerate(st.session_state.ideias_lista):
+                    if st.button(f"{idx_ideia}", key=f"btn_ideia_{i}"):
+                        st.session_state.ideia_escolhida = idx_ideia
+                        st.session_state.etapa = 5
+                        st.rerun()
+
         else:
             st.session_state.ideia_escolhida = st.text_input("Digite a sua ideia/tema para estruturação:")
+            if st.session_state.ideia_escolhida:
+                if st.button("Avançar para Estruturação Estratégica"):
+                    st.session_state.etapa = 5
+                    st.rerun()
 
-        if st.session_state.ideia_escolhida:
-            if st.button("Avançar para Estruturação Estratégica"):
-                st.session_state.etapa = 5
-                st.rerun()
-
-   # --- ETAPA 5 & 6: ESTRUTURA E DIREÇÃO VISUAL ---
+    # --- ETAPA 5 & 6: ESTRUTURA E DIREÇÃO VISUAL ---
     elif st.session_state.etapa == 5:
         modulo_produto = importlib.import_module(MAPA_PRODUTOS[st.session_state.produto])
         base_conhecimento = modulo_produto.CONHECIMENTO
 
         st.subheader("ETAPA 5 & 6: Estrutura Estratégica e Direção Visual")
 
-        # Gera o conteúdo do Gemini apenas UMA vez e salva no estado
-        if "estrutura_rascunho" not in st.session_state or not st.session_state.estrutura_rascunho:
-            with st.spinner("Construindo narrativa de alta retenção com base nas regras..."):
+        if not st.session_state.estrutura_rascunho:
+            with st.spinner("Construindo narrativa de alta retenção..."):
                 prompt_estrutura = f"""
                 Você é o motor da Plataforma Vértice para o especialista Jean Victor.
                 Tema: '{st.session_state.ideia_escolhida}'
-                Formato: {st.session_state.formato} ({st.session_state.num_paginas} páginas/slides se carrossel)
+                Formato: {st.session_state.formato} ({st.session_state.num_paginas} páginas se carrossel)
                 
                 BASE DE CONHECIMENTO E REGRAS DO PRODUTO:
                 {base_conhecimento}
@@ -167,8 +190,7 @@ else:
                 except Exception as err:
                     st.error(f"Erro na conexão com o Gemini (Etapa 5): {err}")
 
-        # Exibe o conteúdo armazenado no estado
-        if "estrutura_rascunho" in st.session_state and st.session_state.estrutura_rascunho:
+        if st.session_state.estrutura_rascunho:
             st.markdown(st.session_state.estrutura_rascunho)
 
         st.divider()
@@ -178,7 +200,6 @@ else:
         col1, col2 = st.columns(2)
         with col1:
             if st.button("✅ SIM, Aprovo! Gerar Imagem"):
-                st.session_state.estrutura_aprovada = True
                 st.session_state.etapa = 8
                 st.rerun()
         with col2:
@@ -186,12 +207,12 @@ else:
                 st.session_state.estrutura_rascunho = None
                 st.rerun()
 
-    # --- ETAPA 8: EXECUÇÃO VISUAL (FLUX.1 [DEV]) ---
+    # --- ETAPA 8: EXECUÇÃO VISUAL ---
     elif st.session_state.etapa == 8:
         st.subheader("ETAPA 8: Renderização Visual Vértice")
         
         if st.session_state.formato == "Reels (Apenas Roteiro)":
-            st.success("O Roteiro para Reels foi concluído na etapa anterior (sem geração de imagem conforme regra).")
+            st.success("O Roteiro para Reels foi concluído na etapa anterior.")
         else:
             with st.spinner("Renderizando arte no FLUX.1 [dev] no padrão Vértice..."):
                 try:
@@ -212,13 +233,7 @@ else:
                         }
                     )
                     
-                    # Trata o retorno da URL da imagem garantindo formato string/link
-                    if isinstance(output, list) and len(output) > 0:
-                        image_url = str(output[0])
-                    else:
-                        image_url = str(output)
-
-                    # Exibe a imagem usando a sintaxe atualizada do Streamlit
+                    image_url = str(output[0]) if isinstance(output, list) else str(output)
                     st.image(image_url, caption=f"Arte Final Vértice — Proporção {config_perfil['proporcao']}", use_container_width=True)
                     st.markdown(f"[📥 Baixar Arte em Alta Resolução (PNG)]({image_url})")
 
@@ -227,5 +242,5 @@ else:
 
         st.divider()
         st.subheader("📝 Rascunho & Legenda Estratégica:")
-        if "estrutura_rascunho" in st.session_state:
+        if st.session_state.estrutura_rascunho:
             st.markdown(st.session_state.estrutura_rascunho)
