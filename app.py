@@ -725,7 +725,7 @@ def _normalizar_ideia_para_comparacao(texto: str) -> str:
     texto = re.sub(
         r"[^a-zà-ÿ0-9\s]",
         " ",
-        texto
+        texto,
     )
 
     return " ".join(texto.split())
@@ -816,6 +816,8 @@ def gerar_ideias_gemini(
         },
     )
 
+    # A cada rodada usamos territórios diferentes.
+    # Isso evita que o Gemini apenas reescreva a mesma ideia.
     territorios = [
         "dor silenciosa",
         "erro comum",
@@ -971,6 +973,8 @@ Retorne SOMENTE:
         if len(candidatas) == 5:
             break
 
+    # Segunda tentativa caso o modelo tenha devolvido
+    # duplicatas ou formato inválido.
     if len(candidatas) < 5:
 
         prompt_reforco = f"""
@@ -1225,6 +1229,133 @@ ou qualquer outro bordão institucional.
 CTA deve ser contextual.
 
 ==================================================
+VISUAL
+==================================================
+
+A fotografia precisa representar
+VISUALMENTE o assunto da página.
+
+Não gere um escritório genérico
+apenas porque o conteúdo é profissional.
+
+Escolha uma cena específica.
+
+Exemplos:
+
+• dashboard → tela com indicadores;
+• apresentação → palco, tela, apresentação;
+• dados → visualização de dados ou análise;
+• produtividade → processo, documentos, fluxo;
+• decisão → pessoa analisando informação;
+• Nutribook → material nutricional, planejamento,
+  atendimento, organização;
+• Vértice → branding, conteúdo, comunicação;
+• apresentações → apresentação profissional,
+  palco, audiência, tela;
+• Método 5P → conteúdo, posicionamento,
+  comunicação e estratégia.
+
+A cena deve fazer sentido mesmo sem texto.
+
+==================================================
+IDENTIDADE VISUAL
+==================================================
+
+Padrão Vértice:
+
+• azul navy profundo;
+• azul royal;
+• azul elétrico sofisticado;
+• branco;
+• amarelo #F4C70F;
+• iluminação azul cinematográfica;
+• contraste elegante;
+• profundidade;
+• fotografia editorial premium;
+• aparência comercial;
+• visual moderno;
+• visual tecnológico;
+• acabamento sofisticado.
+
+O azul precisa ser VISIVELMENTE azul.
+
+Não deixar a imagem cinza.
+
+Não deixar a imagem preta.
+
+Não deixar a imagem excessivamente escura.
+
+==================================================
+ELEMENTOS PROIBIDOS
+==================================================
+
+NUNCA inserir:
+
+• folhas;
+• plantas;
+• ramos;
+• folhagens;
+• flores;
+• vasos com plantas;
+• vegetação;
+• elementos botânicos;
+• estética naturalista;
+• estética tropical;
+• decoração vegetal;
+• logos;
+• logotipos;
+• marcas;
+• marcas d'água;
+• textos;
+• letras;
+• palavras;
+• gráficos com texto;
+• infográficos;
+• ilustrações;
+• CGI;
+• 3D;
+• arte digital;
+• visual artificial.
+
+A fotografia deve parecer fotografia real.
+
+==================================================
+COMPOSIÇÃO
+==================================================
+
+Sempre pensar na composição final.
+
+O texto será aplicado posteriormente pelo Python.
+
+Portanto:
+
+• reservar área limpa para texto;
+• evitar elementos importantes no lado esquerdo;
+• assunto principal preferencialmente
+  à direita ou centro-direita;
+• profundidade visual;
+• composição editorial;
+• iluminação cinematográfica;
+• enquadramento vertical;
+• fotografia realista.
+
+==================================================
+LEGENDA
+==================================================
+
+A legenda é OBRIGATÓRIA.
+
+Deve:
+
+• complementar a arte;
+• não repetir integralmente a headline;
+• ser estratégica;
+• ser curta;
+• ter CTA natural;
+• estar em PT-BR;
+• conter exatamente 5 hashtags.
+
+==================================================
 DIREÇÃO VISUAL
 ==================================================
 
@@ -1308,8 +1439,7 @@ Formato:
         "apoio curto"
       ],
       "cta": "CTA curto",
-      "direcao_visual": "brief visual concept in English",
-      "prompt_visual": "specific English photographic scene, realistic commercial photography, vertical composition, subject on right, clean space on left for later typography"
+      "prompt_visual": "specific English photographic scene, realistic commercial photography, vertical composition, subject on right, clean space on left"
     }}
   ]
 }}
@@ -1431,42 +1561,141 @@ No artificial interface.
 
 
 # ============================================================
-# GERAÇÃO VISUAL
+# IMAGEN — GERAÇÃO VISUAL VIA REPLICATE
 # ============================================================
 
+# Ordem pensada para o padrão Vértice:
+# 1) Ultra = prioridade máxima de qualidade
+# 2) Imagen 4 = equilíbrio entre qualidade e custo
+# 3) Fast = fallback de disponibilidade/custo
+MODELOS_IMAGEN = [
+    "google/imagen-4-ultra",
+    "google/imagen-4",
+    "google/imagen-4-fast",
+]
+
+
 def _extrair_url_output(output):
+    """Normaliza o retorno do Replicate/Imagen para uma URL."""
 
-    if isinstance(
-        output,
-        list,
-    ) and output:
+    if output is None:
+        raise ValueError("O modelo não retornou uma saída de imagem.")
 
-        primeiro = output[0]
+    if hasattr(output, "url"):
+        valor = output.url
+        if callable(valor):
+            valor = valor()
+        return str(valor)
 
-        if hasattr(
-            primeiro,
-            "url",
-        ):
+    if isinstance(output, (list, tuple)) and output:
+        return _extrair_url_output(output[0])
 
-            return str(
-                primeiro.url
+    if isinstance(output, str):
+        return output
+
+    raise TypeError(
+        f"Formato de saída não reconhecido: {type(output).__name__}"
+    )
+
+
+def _gerar_com_modelo_imagen(
+    modelo: str,
+    prompt_final: str,
+):
+    """Executa uma prediction no endpoint oficial do Replicate."""
+
+    endpoint = (
+        "https://api.replicate.com/v1/models/"
+        f"{modelo}/predictions"
+    )
+
+    entrada = {
+        "prompt": prompt_final,
+        "aspect_ratio": "3:4",
+        "output_format": "jpg",
+        "safety_filter_level": "block_only_high",
+    }
+
+    # image_size existe no Imagen 4 e no Ultra, mas não no Fast.
+    if modelo != "google/imagen-4-fast":
+        entrada["image_size"] = "1K"
+
+    headers = {
+        "Authorization": f"Bearer {REPLICATE_API_TOKEN}",
+        "Content-Type": "application/json",
+        "Prefer": "wait=60",
+    }
+
+    resposta = requests.post(
+        endpoint,
+        headers=headers,
+        json={"input": entrada},
+        timeout=120,
+    )
+
+    try:
+        dados = resposta.json()
+    except Exception:
+        dados = {"raw": resposta.text}
+
+    if resposta.status_code not in (200, 201, 202):
+        detalhe = dados.get("error", dados)
+        raise RuntimeError(
+            f"{modelo}: HTTP {resposta.status_code}: {detalhe}"
+        )
+
+    output = dados.get("output")
+
+    if output:
+        return _extrair_url_output(output)
+
+    prediction_url = (
+        dados.get("urls", {}).get("get")
+        or resposta.headers.get("Location")
+    )
+
+    if not prediction_url:
+        raise RuntimeError(
+            f"{modelo}: prediction criada sem URL de consulta."
+        )
+
+    import time
+
+    limite = time.time() + 150
+    ultimo_status = dados.get("status", "unknown")
+
+    while time.time() < limite:
+        time.sleep(2)
+
+        consulta = requests.get(
+            prediction_url,
+            headers={
+                "Authorization": f"Bearer {REPLICATE_API_TOKEN}",
+            },
+            timeout=30,
+        )
+
+        if consulta.status_code != 200:
+            raise RuntimeError(
+                f"{modelo}: erro ao consultar prediction: "
+                f"HTTP {consulta.status_code}: {consulta.text}"
             )
 
-        return str(
-            primeiro
-        )
+        dados = consulta.json()
+        ultimo_status = dados.get("status", "unknown")
+        output = dados.get("output")
 
-    if hasattr(
-        output,
-        "url",
-    ):
+        if output:
+            return _extrair_url_output(output)
 
-        return str(
-            output.url
-        )
+        if ultimo_status in {"failed", "canceled"}:
+            raise RuntimeError(
+                f"{modelo}: geração {ultimo_status}: "
+                f"{dados.get('error') or 'sem detalhes'}"
+            )
 
-    return str(
-        output
+    raise TimeoutError(
+        f"{modelo}: tempo limite excedido. Último status: {ultimo_status}."
     )
 
 
@@ -1474,6 +1703,13 @@ def gerar_fundo_ideogram(
     prompt_visual: str,
     direcao_visual: str = "",
 ):
+    """
+    Gera somente a fotografia de fundo.
+
+    O nome histórico da função é mantido para não alterar o restante do app.
+    A geração é feita pelo Replicate usando Imagen 4 Ultra como primeira opção,
+    com fallback automático para Imagen 4 e Imagen 4 Fast.
+    """
 
     prompt_final = construir_prompt_visual(
         prompt_visual,
@@ -1481,49 +1717,42 @@ def gerar_fundo_ideogram(
     )
 
     if not REPLICATE_API_TOKEN:
-
         raise ValueError(
             "REPLICATE_API_TOKEN não configurada."
         )
 
-    # Imagen 4 — foco em fotografia e aderência visual.
-    output = replicate.run(
+    erros = []
 
-        "google/imagen-4",
-
-        input={
-
-            "prompt":
+    for modelo in MODELOS_IMAGEN:
+        try:
+            image_url = _gerar_com_modelo_imagen(
+                modelo,
                 prompt_final,
+            )
 
-            "image_size":
-                "1K",
+            if not image_url.startswith(("http://", "https://")):
+                raise ValueError(
+                    f"{modelo}: saída inválida: {image_url}"
+                )
 
-            "aspect_ratio":
-                "3:4",
+            arquivo = requests.get(
+                image_url,
+                timeout=120,
+            )
+            arquivo.raise_for_status()
 
-            "output_format":
-                "jpg",
+            return arquivo.content
 
-            "safety_filter_level":
-                "block_medium_and_above",
+        except Exception as erro:
+            erros.append(
+                f"{modelo}: {erro}"
+            )
+            continue
 
-        },
-
+    raise RuntimeError(
+        "Nenhum modelo Imagen conseguiu gerar a imagem.\n\n"
+        + "\n".join(erros)
     )
-
-    image_url = _extrair_url_output(
-        output
-    )
-
-    resposta = requests.get(
-        image_url,
-        timeout=120,
-    )
-
-    resposta.raise_for_status()
-
-    return resposta.content
 
 
 # ============================================================
@@ -2108,6 +2337,7 @@ def renderizar_arte_final(
         )
 
 
+    # segurança
     palavras = headline.split()
 
     if len(palavras) > 10:
@@ -2612,6 +2842,7 @@ elif (
                 )
 
 
+            # Guarda apenas ideias efetivamente apresentadas.
             for ideia in st.session_state.ideias_lista:
 
                 if ideia not in st.session_state.historico_ideias:
