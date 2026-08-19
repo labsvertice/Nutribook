@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import re
 import importlib
@@ -56,6 +57,20 @@ st.markdown(
     }
 
     hr { border-color:#1e2d4a !important; }
+
+    .caption-box {
+        background:#0e1d35;
+        border:1px solid #243b63;
+        border-radius:12px;
+        padding:18px 20px;
+        margin-top:14px;
+    }
+
+    .caption-title {
+        color:#f4c70f;
+        font-weight:800;
+        margin-bottom:8px;
+    }
     </style>
     """,
     unsafe_allow_html=True,
@@ -90,6 +105,9 @@ st.write("---")
 
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 REPLICATE_API_TOKEN = st.secrets.get("REPLICATE_API_TOKEN", "")
+
+if REPLICATE_API_TOKEN:
+    os.environ["REPLICATE_API_TOKEN"] = REPLICATE_API_TOKEN
 
 
 # ============================================================
@@ -126,22 +144,33 @@ MAPA_PRODUTOS = {
 
 
 # ============================================================
-# ESTADOS DO FLUXO — PRESERVADOS
+# ESTADOS DO FLUXO
 # ============================================================
 
-for key in [
-    "etapa",
+ESTADOS = [
     "formato",
     "produto",
     "opcao_ideia",
     "num_paginas",
     "ideia_escolhida",
     "ideias_lista",
-    "estrutura_rascunho",
+    "conteudo_gerado",
+    "pagina_atual",
     "imagem_processada_bytes",
-]:
+]
+
+for key in ESTADOS:
     if key not in st.session_state:
-        st.session_state[key] = 1 if key == "etapa" else None
+        st.session_state[key] = None
+
+if "etapa" not in st.session_state:
+    st.session_state.etapa = 0
+
+
+def resetar_fluxo():
+    for key in ESTADOS:
+        st.session_state[key] = None
+    st.session_state.etapa = 0
 
 
 # ============================================================
@@ -157,8 +186,7 @@ with st.sidebar:
     st.write("---")
 
     if st.button("🔄 Iniciar Novo Conteúdo"):
-        for k in list(st.session_state.keys()):
-            del st.session_state[k]
+        resetar_fluxo()
         st.rerun()
 
 
@@ -212,136 +240,145 @@ def fonte_montserrat(tamanho: int, peso: str = "bold"):
 
 
 # ============================================================
-# TEXTO
+# UTILITÁRIOS DE TEXTO / JSON
 # ============================================================
 
 def limpar_texto(texto: str) -> str:
     texto = texto or ""
     texto = re.sub(r"\*\*", "", texto)
     texto = texto.replace('"', "").replace("“", "").replace("”", "")
+    texto = texto.replace("📌", "")
     return " ".join(texto.split()).strip()
 
 
-def extrair_campo(texto: str, marcadores) -> str:
-    linhas = (texto or "").splitlines()
+def extrair_json_resposta(texto: str):
+    texto = (texto or "").strip()
 
-    for i, linha in enumerate(linhas):
-        upper = linha.upper()
-
-        for marcador in marcadores:
-            if marcador.upper() in upper:
-                partes = linha.split(":", 1)
-
-                if len(partes) == 2 and partes[1].strip():
-                    return limpar_texto(partes[1])
-
-                if i + 1 < len(linhas):
-                    prox = limpar_texto(linhas[i + 1])
-                    if prox and not prox.startswith("|"):
-                        return prox
-
-    return ""
-
-
-def extrair_headline(texto: str, fallback: str) -> str:
-    resultado = extrair_campo(
+    # Remove fences de markdown.
+    texto = re.sub(
+        r"^```(?:json)?\s*",
+        "",
         texto,
-        ["HEADLINE CAPA", "HEADLINE PRINCIPAL", "HEADLINE"],
+        flags=re.IGNORECASE,
     )
-    return resultado or limpar_texto(fallback)
+    texto = re.sub(r"\s*```$","",texto)
+
+    try:
+        return json.loads(texto)
+    except Exception:
+        pass
+
+    # Recupera o maior bloco JSON.
+    inicio_obj = texto.find("{")
+    fim_obj = texto.rfind("}")
+
+    if inicio_obj >= 0 and fim_obj > inicio_obj:
+        try:
+            return json.loads(texto[inicio_obj:fim_obj + 1])
+        except Exception:
+            pass
+
+    raise ValueError("O Gemini não retornou JSON válido.")
 
 
-def extrair_subtextos(texto: str) -> list:
-    linhas = (texto or "").splitlines()
-    encontrados = []
-    capturando = False
-
-    for linha in linhas:
-        upper = linha.upper()
-
-        if "SUBTEXTOS DE APOIO" in upper or "SUBTEXTOS" in upper:
-            capturando = True
-            continue
-
-        if capturando:
-            if any(
-                marcador in upper
-                for marcador in [
-                    "PROMPT VISUAL",
-                    "LEGENDA DO POST",
-                    "CTA",
-                    "HEADLINE",
-                ]
-            ):
-                break
-
-            linha = re.sub(r"^[|\-\•\d\.\)\s]+", "", linha)
-            linha = limpar_texto(linha)
-
-            if linha and len(linha) > 2:
-                encontrados.append(linha)
-
-            if len(encontrados) >= 2:
-                break
-
-    return encontrados
-
-
-def extrair_cta(texto: str) -> str:
-    return extrair_campo(
-        texto,
-        ["CTA:", "CTA FINAL:", "CHAMADA PARA AÇÃO:"],
-    )
-
-
-def extrair_prompt_visual(texto: str) -> str:
-    linhas = (texto or "").splitlines()
-
-    for i, linha in enumerate(linhas):
-        if "PROMPT VISUAL IDEOGRAM" in linha.upper():
-            acumulado = []
-
-            partes = linha.split(":", 1)
-            if len(partes) == 2 and partes[1].strip():
-                acumulado.append(partes[1].strip())
-
-            for prox in linhas[i + 1:]:
-                if (
-                    "LEGENDA DO POST" in prox.upper()
-                    or prox.strip().startswith("📌")
-                ):
-                    break
-                if prox.strip():
-                    acumulado.append(prox.strip())
-
-            return limpar_texto(" ".join(acumulado))
-
-    return ""
-
-
-def quebrar_texto(draw, texto, font, largura_max):
-    palavras = limpar_texto(texto).split()
-    if not palavras:
+def normalizar_lista(valor):
+    if valor is None:
         return []
+    if isinstance(valor, list):
+        return [limpar_texto(str(x)) for x in valor if str(x).strip()]
+    if isinstance(valor, str):
+        return [limpar_texto(valor)]
+    return []
 
-    linhas = []
-    atual = ""
 
-    for palavra in palavras:
-        teste = palavra if not atual else f"{atual} {palavra}"
-        bbox = draw.textbbox((0, 0), teste, font=font)
+def normalizar_conteudo(dados: dict, formato: str) -> dict:
+    """
+    Converte a saída do Gemini em um contrato interno único.
+    Para POST existe exatamente UMA página.
+    Para CARROSSEL existem várias páginas.
+    """
 
-        if bbox[2] - bbox[0] <= largura_max:
-            atual = teste
+    resultado = {
+        "categoria": limpar_texto(
+            dados.get("categoria", "Conteúdo Técnico")
+        ),
+        "objetivo": limpar_texto(
+            dados.get("objetivo", "Atrair")
+        ),
+        "legenda": limpar_texto(
+            dados.get("legenda", "")
+        ),
+        "hashtags": normalizar_lista(
+            dados.get("hashtags", [])
+        ),
+        "paginas": [],
+    }
+
+    paginas = dados.get("paginas", [])
+
+    if not isinstance(paginas, list):
+        paginas = []
+
+    # POST: força exatamente uma página.
+    if formato == "Post Único (4:5)":
+        if paginas:
+            pagina = paginas[0]
         else:
-            if atual:
-                linhas.append(atual)
-            atual = palavra
+            pagina = dados.get("pagina", {})
 
-    if atual:
-        linhas.append(atual)
+        if not isinstance(pagina, dict):
+            pagina = {}
 
-    return linhas
+        resultado["paginas"] = [pagina]
+
+    else:
+        resultado["paginas"] = paginas
+
+    pagina_normalizada = []
+
+    for pagina in resultado["paginas"]:
+        if not isinstance(pagina, dict):
+            pagina = {}
+
+        pagina_normalizada.append(
+            {
+                "headline": limpar_texto(
+                    pagina.get("headline", "")
+                ),
+                "apoios": normalizar_lista(
+                    pagina.get("apoios", [])
+                )[:2],
+                "cta": limpar_texto(
+                    pagina.get("cta", "")
+                ),
+                "prompt_visual": limpar_texto(
+                    pagina.get("prompt_visual", "")
+                ),
+            }
+        )
+
+    resultado["paginas"] = pagina_normalizada
+
+    # Fallback mínimo.
+    if not resultado["paginas"]:
+        resultado["paginas"] = [
+            {
+                "headline": limpar_texto(
+                    dados.get("headline", "")
+                ),
+                "apoios": normalizar_lista(
+                    dados.get("apoios", [])
+                )[:2],
+                "cta": limpar_texto(
+                    dados.get("cta", "")
+                ),
+                "prompt_visual": limpar_texto(
+                    dados.get("prompt_visual", "")
+                ),
+            }
+        ]
+
+    return resultado
 
 
 # ============================================================
@@ -356,15 +393,27 @@ def preparar_canvas_4x5(image_bytes: bytes) -> Image.Image:
 
     if proporcao_base > proporcao_alvo:
         nova_largura = int(base.height * proporcao_alvo)
-        esquerda = (base.width - nova_largura) // 2
+        esquerda = max(0, (base.width - nova_largura) // 2)
+
         base = base.crop(
-            (esquerda, 0, esquerda + nova_largura, base.height)
+            (
+                esquerda,
+                0,
+                esquerda + nova_largura,
+                base.height,
+            )
         )
     else:
         nova_altura = int(base.width / proporcao_alvo)
         topo = max(0, (base.height - nova_altura) // 2)
+
         base = base.crop(
-            (0, topo, base.width, topo + nova_altura)
+            (
+                0,
+                topo,
+                base.width,
+                topo + nova_altura,
+            )
         )
 
     return base.resize(
@@ -382,19 +431,21 @@ def aplicar_tratamento_vertice(img: Image.Image) -> Image.Image:
 
     largura, altura = img.size
 
-    # Navy no lado esquerdo para criar área de leitura.
-    for x in range(int(largura * 0.70)):
-        proporcao = x / (largura * 0.70)
-        alpha = int(170 * (1 - proporcao) ** 1.35)
+    # Área de leitura à esquerda.
+    for x in range(int(largura * 0.72)):
+        proporcao = x / (largura * 0.72)
+        alpha = int(185 * (1 - proporcao) ** 1.30)
+
         draw.line(
             [(x, 0), (x, altura)],
             fill=(5, 17, 40, alpha),
         )
 
-    # Gradiente superior discreto.
-    for y in range(int(altura * 0.34)):
-        proporcao = y / (altura * 0.34)
-        alpha = int(100 * (1 - proporcao) ** 1.7)
+    # Proteção discreta da área superior.
+    for y in range(int(altura * 0.30)):
+        proporcao = y / (altura * 0.30)
+        alpha = int(95 * (1 - proporcao) ** 1.70)
+
         draw.line(
             [(0, y), (largura, y)],
             fill=(4, 16, 37, alpha),
@@ -406,9 +457,20 @@ def aplicar_tratamento_vertice(img: Image.Image) -> Image.Image:
     ).convert("RGB")
 
 
-def desenhar_linha_amarela(draw, x, y, largura=150, espessura=5):
+def desenhar_linha_amarela(
+    draw,
+    x,
+    y,
+    largura=150,
+    espessura=5,
+):
     draw.rounded_rectangle(
-        (x, y, x + largura, y + espessura),
+        (
+            x,
+            y,
+            x + largura,
+            y + espessura,
+        ),
         radius=espessura,
         fill=YELLOW,
     )
@@ -422,49 +484,79 @@ def desenhar_assinatura(draw):
     sub = "Dados • Comunicação • Conteúdo Inteligente"
     margem = 62
 
-    bbox_nome = draw.textbbox((0, 0), nome, font=fonte_nome)
-    bbox_sub = draw.textbbox((0, 0), sub, font=fonte_sub)
+    bbox_nome = draw.textbbox(
+        (0, 0),
+        nome,
+        font=fonte_nome,
+    )
+
+    bbox_sub = draw.textbbox(
+        (0, 0),
+        sub,
+        font=fonte_sub,
+    )
 
     largura_nome = bbox_nome[2] - bbox_nome[0]
     largura_sub = bbox_sub[2] - bbox_sub[0]
 
     draw.text(
-        (CANVAS_W - margem - largura_nome, CANVAS_H - 115),
+        (
+            CANVAS_W - margem - largura_nome,
+            CANVAS_H - 115,
+        ),
         nome,
         font=fonte_nome,
         fill=WHITE,
     )
 
     draw.text(
-        (CANVAS_W - margem - largura_sub, CANVAS_H - 65),
+        (
+            CANVAS_W - margem - largura_sub,
+            CANVAS_H - 65,
+        ),
         sub,
         font=fonte_sub,
-        fill="#A6A6A6",
+        fill=GRAY,
     )
 
 
 def desenhar_cta(draw, texto):
     texto = limpar_texto(texto)
+
     if not texto:
         return
 
-    if len(texto) > 55:
-        texto = texto[:55].rsplit(" ", 1)[0] + "…"
+    if len(texto) > 45:
+        texto = texto[:45].rsplit(" ", 1)[0] + "…"
 
     fonte = fonte_montserrat(25, "bold")
     padding_x = 30
     padding_y = 18
 
-    bbox = draw.textbbox((0, 0), texto, font=fonte)
+    bbox = draw.textbbox(
+        (0, 0),
+        texto,
+        font=fonte,
+    )
+
     largura = bbox[2] - bbox[0]
     altura = bbox[3] - bbox[1]
 
-    largura_caixa = min(largura + padding_x * 2, CANVAS_W - 124)
+    largura_caixa = min(
+        largura + padding_x * 2,
+        CANVAS_W - 124,
+    )
+
     x = 62
-    y = CANVAS_H - 210
+    y = CANVAS_H - 215
 
     draw.rounded_rectangle(
-        (x, y, x + largura_caixa, y + altura + padding_y * 2),
+        (
+            x,
+            y,
+            x + largura_caixa,
+            y + altura + padding_y * 2,
+        ),
         radius=18,
         outline=YELLOW,
         width=3,
@@ -472,7 +564,10 @@ def desenhar_cta(draw, texto):
     )
 
     draw.text(
-        (x + padding_x, y + padding_y - 2),
+        (
+            x + padding_x,
+            y + padding_y - 2,
+        ),
         texto,
         font=fonte,
         fill=WHITE,
@@ -490,19 +585,36 @@ def renderizar_arte_final(
 
     img = preparar_canvas_4x5(image_bytes)
     img = aplicar_tratamento_vertice(img)
+
     draw = ImageDraw.Draw(img)
 
-    # Elemento gráfico Vértice: linha curta, sem logo.
-    desenhar_linha_amarela(draw, 62, 82)
+    # Elemento gráfico Vértice.
+    desenhar_linha_amarela(
+        draw,
+        62,
+        82,
+    )
 
-    # Headline curta e dominante.
+    # --------------------------------------------------------
+    # HEADLINE
+    # --------------------------------------------------------
+
     headline = limpar_texto(headline_texto)
+
+    if not headline:
+        headline = "conteúdo que comunica valor."
+
+    # Limite de segurança para evitar headline gigante.
     palavras = headline.split()
 
-    if len(palavras) > 18:
-        headline = " ".join(palavras[:18])
+    if len(palavras) > 14:
+        headline = " ".join(palavras[:14])
 
-    fonte_headline = fonte_montserrat(82, "extrabold")
+    fonte_headline = fonte_montserrat(
+        82,
+        "extrabold",
+    )
+
     linhas = quebrar_texto(
         draw,
         headline,
@@ -513,7 +625,12 @@ def renderizar_arte_final(
     y = 145
 
     for indice, linha in enumerate(linhas):
-        cor = WHITE if indice < max(1, len(linhas) - 1) else YELLOW
+        # Última linha pode receber amarelo para criar tensão.
+        cor = (
+            WHITE
+            if indice < max(1, len(linhas) - 1)
+            else YELLOW
+        )
 
         draw.text(
             (62, y),
@@ -528,18 +645,34 @@ def renderizar_arte_final(
             font=fonte_headline,
         )
 
-        y += (bbox[3] - bbox[1]) + 12
+        y += (
+            bbox[3] - bbox[1]
+        ) + 12
 
-    # No máximo dois apoios curtos.
+    # --------------------------------------------------------
+    # APOIOS — NO MÁXIMO 2 E CURTOS
+    # --------------------------------------------------------
+
     if subtextos:
-        fonte_sub = fonte_montserrat(28, "bold")
-        y_sub = min(y + 30, 760)
+        fonte_sub = fonte_montserrat(
+            28,
+            "bold",
+        )
+
+        y_sub = min(
+            y + 30,
+            770,
+        )
 
         for texto in subtextos[:2]:
             texto = limpar_texto(texto)
 
-            if len(texto) > 95:
-                texto = texto[:95].rsplit(" ", 1)[0] + "…"
+            if len(texto) > 80:
+                texto = (
+                    texto[:80]
+                    .rsplit(" ", 1)[0]
+                    + "…"
+                )
 
             linhas_sub = quebrar_texto(
                 draw,
@@ -562,28 +695,80 @@ def renderizar_arte_final(
                     font=fonte_sub,
                 )
 
-                y_sub += (bbox[3] - bbox[1]) + 7
+                y_sub += (
+                    bbox[3] - bbox[1]
+                ) + 7
 
-            y_sub += 12
+            y_sub += 10
 
     if cta:
-        desenhar_cta(draw, cta)
+        desenhar_cta(
+            draw,
+            cta,
+        )
 
     desenhar_assinatura(draw)
 
     return img
 
 
+def quebrar_texto(
+    draw,
+    texto,
+    font,
+    largura_max,
+):
+    palavras = limpar_texto(texto).split()
+
+    if not palavras:
+        return []
+
+    linhas = []
+    atual = ""
+
+    for palavra in palavras:
+        teste = (
+            palavra
+            if not atual
+            else f"{atual} {palavra}"
+        )
+
+        bbox = draw.textbbox(
+            (0, 0),
+            teste,
+            font=font,
+        )
+
+        if bbox[2] - bbox[0] <= largura_max:
+            atual = teste
+        else:
+            if atual:
+                linhas.append(atual)
+
+            atual = palavra
+
+    if atual:
+        linhas.append(atual)
+
+    return linhas
+
+
 # ============================================================
 # GEMINI — IDEIAS
 # ============================================================
 
-def gerar_ideias_gemini(api_key: str, base_conhecimento: str) -> list:
+def gerar_ideias_gemini(
+    api_key: str,
+    base_conhecimento: str,
+) -> list:
+
     genai.configure(api_key=api_key)
 
     model = genai.GenerativeModel(
         "gemini-3.5-flash-lite",
-        generation_config={"temperature": 0.95},
+        generation_config={
+            "temperature": 0.95,
+        },
     )
 
     prompt = f"""
@@ -592,194 +777,414 @@ Você é o estrategista de conteúdo da Plataforma Vértice — Jean Victor.
 BASE DE CONHECIMENTO:
 {base_conhecimento}
 
-Gere 5 ideias ÚNICAS e VARIADAS para Instagram.
+Gere exatamente 5 ideias para Instagram.
 
 Distribua entre:
 • descoberta
 • conteúdo técnico
 • posicionamento
 
-As ideias devem ser curtas, estratégicas e específicas à base.
-Evite linguagem genérica, motivacional ou professoral.
-Ferramentas podem aparecer quando fizerem sentido, mas são meio, não fim.
+As ideias devem ser:
+• específicas à base;
+• estratégicas;
+• curtas;
+• variadas;
+• não genéricas;
+• não motivacionais;
+• não professorais.
 
-Formato obrigatório:
+Ferramentas são meio, não fim.
+
+Retorne SOMENTE:
 1. ideia
 2. ideia
 3. ideia
 4. ideia
 5. ideia
-
-Não escreva explicações antes ou depois.
 """
 
-    res = model.generate_content(prompt)
+    resposta = model.generate_content(prompt)
 
     linhas = [
-        line.strip()
-        for line in res.text.split("\n")
-        if line.strip() and re.match(r"^\d+[\.\)]\s*", line.strip())
+        linha.strip()
+        for linha in resposta.text.splitlines()
+        if linha.strip()
+        and re.match(
+            r"^\d+[\.\)]\s*",
+            linha.strip(),
+        )
     ]
 
-    return linhas[:5] if linhas else [res.text.strip()]
+    return (
+        linhas[:5]
+        if linhas
+        else [resposta.text.strip()]
+    )
 
 
 # ============================================================
-# GEMINI — ESTRUTURA + PROMPT VISUAL
+# GEMINI — CONTEÚDO FINAL
 # ============================================================
 
 @st.cache_data(show_spinner=False)
-def gerar_estrutura_gemini(
+def gerar_conteudo_final(
     api_key: str,
     ideia: str,
     formato: str,
     paginas: int,
     base_conhecimento: str,
-) -> str:
+) -> dict:
 
     genai.configure(api_key=api_key)
 
-    model = genai.GenerativeModel("gemini-3.5-flash-lite")
+    model = genai.GenerativeModel(
+        "gemini-3.5-flash-lite",
+        generation_config={
+            "temperature": 0.75,
+            "response_mime_type": "application/json",
+        },
+    )
+
+    if formato == "Post Único (4:5)":
+        instrucoes_formato = """
+FORMATO: POST ÚNICO.
+
+ATENÇÃO:
+- Gere EXATAMENTE 1 página.
+- NÃO gere página 2.
+- NÃO gere página 3.
+- NÃO trate o post como carrossel.
+- O post inteiro precisa comunicar UMA ideia.
+"""
+    elif formato == "Carrossel (4:5)":
+        instrucoes_formato = f"""
+FORMATO: CARROSSEL.
+
+Gere EXATAMENTE {paginas} páginas.
+Cada página deve ter uma ideia principal.
+"""
+    else:
+        instrucoes_formato = """
+FORMATO: REELS.
+Não gerar imagem.
+Gerar somente roteiro.
+"""
 
     prompt = f"""
 Você é o estrategista de conteúdo premium da Plataforma Vértice — Jean Victor.
 
-TEMA:
+IDEIA DO USUÁRIO:
 {ideia}
 
-FORMATO:
-{formato}
-
-PÁGINAS:
-{paginas}
+{instrucoes_formato}
 
 BASE DE CONHECIMENTO DO PRODUTO:
 {base_conhecimento}
 
-REGRAS:
-- A base define O QUE comunicar.
-- Nunca invente informações.
-- Ferramentas são meio, não fim.
-- Partir de dor, consequência, desejo, oportunidade ou ganho.
-- Comunicação estratégica, direta, provocativa e premium.
-- Uma ideia principal por peça/slide.
-- Todo texto da arte deve ser compreendido em até 3 segundos.
-- Poucas palavras, headline dominante e complemento mínimo.
-- Evitar parágrafos, miniartigos e excesso de informação.
-- Predomínio de caixa baixa.
-- Usar PT-BR.
-- Para carrossel, criar progressão narrativa e cenas diferentes.
-- Não repetir a mesma cena visual em páginas consecutivas.
+==================================================
+REGRAS ESTRATÉGICAS
+==================================================
 
-DIREÇÃO VISUAL VÉRTICE:
-- formato final 4:5, 1080x1350;
-- azul navy profundo;
-- azul escuro cinematográfico;
-- azul petróleo e azul noturno;
-- branco;
-- amarelo #F4C70F;
-- Montserrat ExtraBold/Bold;
-- premium, limpa, moderna, editorial e estratégica;
-- azul VISIVELMENTE azul;
-- iluminação azul elegante;
-- profundidade;
-- contraste cinematográfico suave;
-- degradês azulados;
-- brilho azul sutil;
-- luz suave nas bordas.
+A base de conhecimento define o que pode ser comunicado.
+Não invente funcionalidades, benefícios, números ou informações.
+
+Nunca foque na ferramenta como protagonista.
+Foque em:
+• decisões;
+• dor;
+• falta de clareza;
+• desorganização;
+• perda;
+• ganho;
+• produtividade;
+• autoridade;
+• percepção profissional;
+• experiência do cliente.
+
+Tom:
+• estratégico;
+• direto;
+• provocativo;
+• premium.
+
+Nunca:
+• motivacional;
+• genérico;
+• professoral;
+• amigável demais;
+• técnico demais.
+
+==================================================
+REGRAS DE COPY
+==================================================
+
+A arte precisa ser compreendida em até 3 segundos.
+
+Priorize:
+• poucas palavras;
+• headline forte;
+• frases curtas;
+• alto impacto;
+• escaneabilidade.
+
+Evite:
+• parágrafos;
+• explicações;
+• miniartigos;
+• contexto excessivo;
+• múltiplos blocos;
+• excesso de informação.
+
+POST:
+- headline de preferência entre 3 e 8 palavras;
+- no máximo 2 apoios;
+- cada apoio deve ser muito curto;
+- CTA curto;
+- não ultrapassar aproximadamente 12–18 palavras na comunicação principal da arte.
+
+CARROSSEL:
+- uma ideia por página;
+- headline dominante;
+- apoio mínimo;
+- não transformar página em texto explicativo.
+
+==================================================
+REGRAS VISUAIS
+==================================================
+
+Identidade Vértice:
+• azul navy profundo;
+• azul royal sofisticado;
+• azul moderno tecnológico;
+• branco;
+• amarelo #F4C70F;
+• Montserrat ExtraBold/Bold;
+• visual premium;
+• editorial;
+• moderno;
+• limpo;
+• sofisticado;
+• respiro visual;
+• profundidade;
+• iluminação azul elegante.
+
+O azul precisa permanecer VISIVELMENTE azul.
 
 PROIBIDO:
-- azul acinzentado ou quase preto;
-- fundo preto chapado;
-- visual apagado;
-- sombras excessivas;
-- folhas;
-- plantas;
-- ramos;
-- elementos botânicos;
-- logos;
-- logotipos;
-- marcas d'água;
-- símbolos de marca;
-- texto dentro da fotografia;
-- gráficos gerados pelo modelo;
-- CGI;
-- 3D;
-- ilustração.
+• folhas;
+• plantas;
+• ramos;
+• folhagens;
+• flores;
+• elementos botânicos;
+• estética naturalista/botânica;
+• logos;
+• logotipos;
+• marcas d'água;
+• texto na fotografia;
+• gráficos na fotografia;
+• infográficos;
+• mockups desnecessários;
+• ilustração;
+• CGI;
+• 3D.
 
-A ARTE FINAL SERÁ MONTADA PROGRAMATICAMENTE.
-O IDEOGRAM DEVE GERAR SOMENTE A FOTOGRAFIA/FUNDO.
-Não peça headline, CTA, logo ou texto ao gerador.
+A imagem será composta programaticamente.
+O gerador de imagem deve criar SOMENTE a fotografia/fundo.
 
-A fotografia deve preferencialmente colocar o assunto principal no lado direito ou centro-direito e deixar área limpa no lado esquerdo para tipografia.
+De preferência:
+• assunto principal à direita ou centro-direita;
+• área visual limpa à esquerda;
+• fotografia hiper-realista;
+• iluminação cinematográfica;
+• materiais realistas;
+• profundidade de campo;
+• aparência editorial premium.
 
-SAÍDA OBRIGATÓRIA:
+==================================================
+LEGENDA
+==================================================
 
-📌 TEXTO DA ARTE / CARROSSEL
+A legenda é OBRIGATÓRIA.
 
-CATEGORIA:
-[Descoberta / Conteúdo Técnico / Posicionamento]
+Deve:
+• complementar a arte;
+• ser curta;
+• ser estratégica;
+• não repetir integralmente a headline;
+• ter CTA natural;
+• usar PT-BR;
+• incluir exatamente 5 hashtags relevantes.
 
-OBJETIVO:
-[Atrair / Ensinar / Fortalecer autoridade]
+==================================================
+SAÍDA
+==================================================
 
-HEADLINE CAPA:
-[headline curta e forte]
+Retorne SOMENTE JSON válido, sem markdown.
 
-SUBTEXTOS DE APOIO:
-| [frase curta]
-| [frase curta]
+Formato:
 
-CTA:
-[CTA curto ou vazio]
+{{
+  "categoria": "Descoberta | Conteúdo Técnico | Posicionamento",
+  "objetivo": "Atrair | Ensinar | Fortalecer autoridade",
+  "legenda": "legenda completa em PT-BR",
+  "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"],
+  "paginas": [
+    {{
+      "headline": "headline curta",
+      "apoios": ["apoio curto", "apoio curto"],
+      "cta": "CTA curto",
+      "prompt_visual": "prompt em inglês SOMENTE para fotografia/fundo, sem texto, sem logo, sem folhas, sem plantas"
+    }}
+  ]
+}}
 
-PROMPT VISUAL IDEOGRAM:
-[Prompt em inglês para fotografia hiper-realista. Descrever somente cena, ambiente, pessoa/objeto, enquadramento, iluminação e atmosfera. Não inserir texto, logos, folhas ou plantas.]
-
-📌 LEGENDA DO POST
-[Legenda curta e estratégica, coerente com a base.]
-
-Para POST, manter o texto extremamente enxuto.
-Para CARROSSEL, separar cada página e manter uma ideia principal por página.
+IMPORTANTE:
+- Para POST, "paginas" deve ter EXATAMENTE 1 item.
+- Para CARROSSEL, "paginas" deve ter EXATAMENTE {paginas} itens.
+- O prompt_visual não pode pedir texto.
+- Não coloque texto, logo ou folhas na fotografia.
 """
 
-    res = model.generate_content(prompt)
-    return res.text
+    resposta = model.generate_content(prompt)
+    dados = extrair_json_resposta(resposta.text)
+
+    return normalizar_conteudo(
+        dados,
+        formato,
+    )
 
 
 # ============================================================
-# LIMPEZA DO RASCUNHO
+# PROMPT VISUAL — REFORÇO FINAL
 # ============================================================
 
-def limpar_rascunho_exibicao(texto: str) -> str:
-    linhas = texto.split("\n")
-    resultado = []
-    ignorar = False
+def construir_prompt_visual(prompt_base: str) -> str:
 
-    for linha in linhas:
-        if "PROMPT VISUAL IDEOGRAM" in linha.upper():
-            ignorar = True
-            continue
+    prompt_base = limpar_texto(prompt_base)
 
-        if ignorar and (
-            linha.startswith("📌")
-            or "LEGENDA DO POST" in linha.upper()
-        ):
-            ignorar = False
+    reforco = """
+Hyper-realistic premium editorial photography.
+Deep navy blue and sophisticated royal blue environment.
+Clearly visible blue tones.
+Elegant cinematic blue lighting.
+Realistic materials and natural details.
+Professional commercial photography.
+Clean composition.
+Main subject preferably on the right or center-right.
+Leave clean negative space on the left for typography.
+Subtle depth of field.
+No text.
+No words.
+No letters.
+No typography.
+No logo.
+No brand mark.
+No watermark.
+No leaves.
+No plants.
+No branches.
+No foliage.
+No flowers.
+No botanical elements.
+No natural botanical decoration.
+No CGI.
+No 3D render.
+No illustration.
+No infographic.
+No graphic design.
+"""
 
-        if not ignorar:
-            resultado.append(linha)
-
-    return "\n".join(resultado)
+    return (
+        prompt_base
+        + " "
+        + reforco
+    )
 
 
 # ============================================================
+# IDEOGRAM
+# ============================================================
+
+def gerar_fundo_ideogram(prompt_visual: str) -> bytes:
+
+    prompt_final = construir_prompt_visual(
+        prompt_visual
+    )
+
+    output = replicate.run(
+        "ideogram-ai/ideogram-v2",
+        input={
+            "prompt": prompt_final,
+            "aspect_ratio": "3:4",
+            "style_type": "Realistic",
+            "magic_prompt_option": "Off",
+        },
+    )
+
+    image_url = (
+        str(output[0])
+        if isinstance(output, list)
+        else str(output)
+    )
+
+    resposta = requests.get(
+        image_url,
+        timeout=90,
+    )
+
+    resposta.raise_for_status()
+
+    return resposta.content
+
+
+# ============================================================
+# EXIBIÇÃO DA LEGENDA
+# ============================================================
+
+def exibir_legenda(conteudo: dict):
+
+    legenda = limpar_texto(
+        conteudo.get("legenda", "")
+    )
+
+    hashtags = normalizar_lista(
+        conteudo.get("hashtags", [])
+    )
+
+    if not legenda:
+        return
+
+    st.markdown(
+        '<div class="caption-box">'
+        '<div class="caption-title">📝 Legenda pronta</div>',
+        unsafe_allow_html=True,
+    )
+
+    st.write(legenda)
+
+    if hashtags:
+        st.write(" ".join(hashtags[:5]))
+
+    st.markdown(
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# FLUXO PRINCIPAL
+# ============================================================
+
+# ------------------------------------------------------------
 # PASSO 0 — FORMATO
-# ============================================================
+# ------------------------------------------------------------
 
 if st.session_state.formato is None:
 
-    st.subheader("Olá Jean Victor! O que vamos criar hoje?")
+    st.subheader(
+        "Olá Jean Victor! O que vamos criar hoje?"
+    )
 
     fmt = st.radio(
         "Selecione o formato:",
@@ -792,355 +1197,403 @@ if st.session_state.formato is None:
 
     if st.button("Confirmar Formato"):
         st.session_state.formato = fmt
+        st.session_state.etapa = 1
         st.rerun()
 
-else:
+
+# ------------------------------------------------------------
+# ETAPA 1 — PRODUTO
+# ------------------------------------------------------------
+
+elif st.session_state.etapa == 1:
 
     st.info(
-        f"📌 Formato selecionado: **{st.session_state.formato}**"
+        f"📌 Formato selecionado: "
+        f"**{st.session_state.formato}**"
     )
 
-    # ========================================================
-    # ETAPA 1
-    # ========================================================
+    st.subheader(
+        "ETAPA 1: Qual é o Produto?"
+    )
 
-    if st.session_state.etapa == 1:
+    prod = st.radio(
+        "Selecione:",
+        list(MAPA_PRODUTOS.keys()),
+    )
 
-        st.subheader("ETAPA 1: Qual é o Produto?")
+    if st.button("Avançar para Etapa 2"):
+        st.session_state.produto = prod
+        st.session_state.etapa = 2
+        st.rerun()
 
-        prod = st.radio(
-            "Selecione:",
-            list(MAPA_PRODUTOS.keys()),
+
+# ------------------------------------------------------------
+# ETAPA 2 — IDEIA
+# ------------------------------------------------------------
+
+elif st.session_state.etapa == 2:
+
+    st.info(
+        f"📌 Formato: "
+        f"**{st.session_state.formato}**"
+    )
+
+    st.subheader(
+        "ETAPA 2: Como vamos definir o conteúdo?"
+    )
+
+    op = st.radio(
+        "Selecione:",
+        [
+            "1️⃣ Já tenho ideia",
+            "2️⃣ Quero ideias estratégicas",
+        ],
+    )
+
+    paginas = 1
+
+    if st.session_state.formato == "Carrossel (4:5)":
+        paginas = st.number_input(
+            "Quantidade de páginas:",
+            min_value=3,
+            max_value=10,
+            value=5,
         )
 
-        if st.button("Avançar para Etapa 2"):
-            st.session_state.produto = prod
-            st.session_state.etapa = 2
-            st.rerun()
+    if st.button("Avançar"):
+        st.session_state.opcao_ideia = op
+        st.session_state.num_paginas = paginas
+        st.session_state.etapa = 3
+        st.rerun()
 
-    # ========================================================
-    # ETAPA 2 + 3
-    # ========================================================
 
-    elif st.session_state.etapa == 2:
+# ------------------------------------------------------------
+# ETAPA 3 — DEFINIÇÃO DA IDEIA
+# ------------------------------------------------------------
 
-        st.subheader("ETAPA 2: Origem da Ideia")
+elif st.session_state.etapa == 3:
 
-        op = st.radio(
-            "Como deseja prosseguir?",
-            [
-                "1️⃣ Já tenho ideia",
-                "2️⃣ Quero ideias estratégicas",
-            ],
-        )
+    modulo = importlib.import_module(
+        MAPA_PRODUTOS[st.session_state.produto]
+    )
 
-        paginas = 5
+    st.info(
+        f"📌 Produto: **{st.session_state.produto}**"
+    )
 
-        if st.session_state.formato == "Carrossel (4:5)":
-            paginas = st.number_input(
-                "ETAPA 3: Quantidade de páginas do carrossel:",
-                min_value=3,
-                max_value=10,
-                value=5,
-            )
-
-        if st.button("Avançar para Ideação"):
-            st.session_state.opcao_ideia = op
-            st.session_state.num_paginas = paginas
-            st.session_state.etapa = 4
-            st.rerun()
-
-    # ========================================================
-    # ETAPA 4
-    # ========================================================
-
-    elif st.session_state.etapa == 4:
-
-        modulo = importlib.import_module(
-            MAPA_PRODUTOS[st.session_state.produto]
-        )
+    if (
+        st.session_state.opcao_ideia
+        == "2️⃣ Quero ideias estratégicas"
+    ):
 
         st.subheader(
-            f"ETAPA 4: Definição do Conteúdo — "
-            f"{st.session_state.produto}"
+            "ETAPA 3: Escolha uma ideia"
         )
 
-        if (
-            st.session_state.opcao_ideia
-            == "2️⃣ Quero ideias estratégicas"
-        ):
+        if not st.session_state.ideias_lista:
 
-            if not st.session_state.ideias_lista:
-
-                with st.spinner(
-                    "Analisando a base de conhecimento..."
-                ):
-                    st.session_state.ideias_lista = (
-                        gerar_ideias_gemini(
-                            GEMINI_API_KEY,
-                            modulo.CONHECIMENTO,
-                        )
-                    )
-
-                st.rerun()
-
-            for i, ideia in enumerate(
-                st.session_state.ideias_lista
-            ):
-                if st.button(
-                    ideia,
-                    key=f"btn_ideia_{i}",
-                ):
-                    st.session_state.ideia_escolhida = ideia
-                    st.session_state.etapa = 5
-                    st.rerun()
-
-        else:
-
-            st.session_state.ideia_escolhida = st.text_input(
-                "Digite a sua ideia:"
-            )
-
-            if (
-                st.session_state.ideia_escolhida
-                and st.button("Avançar")
-            ):
-                st.session_state.etapa = 5
-                st.rerun()
-
-    # ========================================================
-    # ETAPA 5
-    # ========================================================
-
-    elif st.session_state.etapa == 5:
-
-        modulo = importlib.import_module(
-            MAPA_PRODUTOS[st.session_state.produto]
-        )
-
-        st.subheader("ETAPA 5: Estrutura Estratégica")
-
-        if not st.session_state.estrutura_rascunho:
+            if not GEMINI_API_KEY:
+                st.error(
+                    "GEMINI_API_KEY não configurada."
+                )
+                st.stop()
 
             with st.spinner(
-                "Construindo narrativa estratégica..."
+                "Consultando a base de conhecimento..."
             ):
-                st.session_state.estrutura_rascunho = (
-                    gerar_estrutura_gemini(
+                st.session_state.ideias_lista = (
+                    gerar_ideias_gemini(
                         GEMINI_API_KEY,
-                        st.session_state.ideia_escolhida,
-                        st.session_state.formato,
-                        st.session_state.num_paginas,
                         modulo.CONHECIMENTO,
                     )
                 )
 
             st.rerun()
 
-        st.markdown(
-            limpar_rascunho_exibicao(
-                st.session_state.estrutura_rascunho
+        for i, ideia in enumerate(
+            st.session_state.ideias_lista
+        ):
+            if st.button(
+                ideia,
+                key=f"btn_ideia_{i}",
+            ):
+                st.session_state.ideia_escolhida = ideia
+                st.session_state.etapa = 4
+                st.rerun()
+
+    else:
+
+        st.subheader(
+            "ETAPA 3: Digite sua ideia"
+        )
+
+        ideia = st.text_area(
+            "Sua ideia:",
+            height=120,
+            placeholder=(
+                "Ex.: seu dashboard tem muitos números, "
+                "mas pouca clareza."
+            ),
+        )
+
+        if ideia.strip():
+
+            if st.button(
+                "🚀 Criar conteúdo",
+            ):
+                st.session_state.ideia_escolhida = (
+                    ideia.strip()
+                )
+                st.session_state.etapa = 4
+                st.rerun()
+
+
+# ------------------------------------------------------------
+# ETAPA 4 — GERAÇÃO DIRETA
+#
+# A antiga etapa de aprovação/estrutura foi eliminada.
+# O Gemini trabalha internamente e o usuário recebe diretamente
+# a arte final.
+# ------------------------------------------------------------
+
+elif st.session_state.etapa == 4:
+
+    modulo = importlib.import_module(
+        MAPA_PRODUTOS[st.session_state.produto]
+    )
+
+    if not GEMINI_API_KEY:
+        st.error(
+            "GEMINI_API_KEY não configurada."
+        )
+        st.stop()
+
+    if not st.session_state.conteudo_gerado:
+
+        with st.spinner(
+            "Construindo conteúdo estratégico..."
+        ):
+            try:
+                st.session_state.conteudo_gerado = (
+                    gerar_conteudo_final(
+                        GEMINI_API_KEY,
+                        st.session_state.ideia_escolhida,
+                        st.session_state.formato,
+                        st.session_state.num_paginas or 1,
+                        modulo.CONHECIMENTO,
+                    )
+                )
+
+                st.session_state.pagina_atual = 0
+                st.session_state.imagem_processada_bytes = None
+
+            except Exception as erro:
+                st.error(
+                    f"Erro ao construir conteúdo: {erro}"
+                )
+                st.stop()
+
+    conteudo = st.session_state.conteudo_gerado
+    pagina_index = st.session_state.pagina_atual or 0
+    paginas_conteudo = conteudo.get("paginas", [])
+
+    # Segurança absoluta para POST.
+    if st.session_state.formato == "Post Único (4:5)":
+        paginas_conteudo = paginas_conteudo[:1]
+
+    if not paginas_conteudo:
+        st.error(
+            "O conteúdo não retornou uma página válida."
+        )
+        st.stop()
+
+    pagina_index = min(
+        pagina_index,
+        len(paginas_conteudo) - 1,
+    )
+
+    pagina = paginas_conteudo[pagina_index]
+
+    # --------------------------------------------------------
+    # REELS
+    # --------------------------------------------------------
+
+    if (
+        st.session_state.formato
+        == "Reels (Apenas Roteiro)"
+    ):
+
+        st.subheader(
+            "🎬 Roteiro do Reels"
+        )
+
+        st.write(
+            conteudo.get(
+                "legenda",
+                "",
             )
         )
 
-        st.divider()
+        if conteudo.get("hashtags"):
+            st.write(
+                " ".join(
+                    conteudo["hashtags"][:5]
+                )
+            )
 
-        col1, col2 = st.columns(2)
+        st.stop()
 
-        with col1:
-            if st.button("✅ Aprovar e Gerar Arte"):
-                st.session_state.etapa = 8
-                st.rerun()
+    # --------------------------------------------------------
+    # GERAÇÃO DA ARTE
+    # --------------------------------------------------------
 
-        with col2:
-            if st.button("❌ Refazer Estrutura"):
-                st.session_state.estrutura_rascunho = None
-                st.rerun()
+    if not st.session_state.imagem_processada_bytes:
 
-    # ========================================================
-    # ETAPA 8 — IMAGEM
-    # ========================================================
-
-    elif st.session_state.etapa == 8:
-
-        st.subheader(
-            "ETAPA 8: Renderização Hiper-Realista "
-            "Pronta para Postar"
-        )
-
-        if (
-            st.session_state.formato
-            == "Reels (Apenas Roteiro)"
+        with st.spinner(
+            "Gerando fotografia e aplicando "
+            "composição Vértice..."
         ):
 
-            st.success(
-                "O roteiro foi concluído. "
-                "Reels não gera imagem."
-            )
+            try:
 
-        else:
-
-            if not st.session_state.imagem_processada_bytes:
-
-                with st.spinner(
-                    "Gerando fotografia e aplicando "
-                    "composição Vértice..."
-                ):
-
-                    try:
-
-                        # ------------------------------------
-                        # 1. PROMPT VISUAL
-                        # ------------------------------------
-
-                        prompt_fundo = extrair_prompt_visual(
-                            st.session_state.estrutura_rascunho
-                        )
-
-                        if not prompt_fundo:
-                            prompt_fundo = (
-                                "Hyper-realistic RAW editorial "
-                                "photograph, sophisticated modern "
-                                "professional environment, realistic "
-                                "human subject or relevant object "
-                                "connected to the topic, cinematic "
-                                "navy blue atmosphere, elegant blue "
-                                "edge lighting, realistic materials, "
-                                "natural skin texture, shallow depth "
-                                "of field, subject positioned on the "
-                                "right or center-right, clean dark "
-                                "negative space on the left for "
-                                "typography, premium editorial "
-                                "photography, 35mm lens, realistic "
-                                "lighting"
-                            )
-
-                        prompt_fundo += (
-                            ", deep navy blue, sophisticated royal "
-                            "blue accents, visible blue tones, "
-                            "subtle yellow accent #F4C70F, premium "
-                            "editorial composition, NO CGI, NO 3D, "
-                            "NO GRAPHICS, NO TEXT, NO WORDS, NO "
-                            "LOGOS, NO WATERMARKS, NO LEAVES, NO "
-                            "PLANTS, NO BOTANICAL ELEMENTS"
-                        )
-
-                        # ------------------------------------
-                        # 2. IDEOGRAM
-                        # ------------------------------------
-
-                        output = replicate.run(
-                            "ideogram-ai/ideogram-v2",
-                            input={
-                                "prompt": prompt_fundo,
-                                # Preservado por compatibilidade
-                                # com o modelo que já está rodando.
-                                "aspect_ratio": "3:4",
-                                "style_type": "Realistic",
-                                "magic_prompt_option": "Off",
-                            },
-                        )
-
-                        image_url = (
-                            str(output[0])
-                            if isinstance(output, list)
-                            else str(output)
-                        )
-
-                        resposta = requests.get(
-                            image_url,
-                            timeout=60,
-                        )
-                        resposta.raise_for_status()
-
-                        raw_bytes = resposta.content
-
-                        # ------------------------------------
-                        # 3. TEXTO DA ESTRUTURA
-                        # ------------------------------------
-
-                        headline_texto = extrair_headline(
-                            st.session_state.estrutura_rascunho,
-                            st.session_state.ideia_escolhida,
-                        )
-
-                        subtextos = extrair_subtextos(
-                            st.session_state.estrutura_rascunho
-                        )
-
-                        cta = extrair_cta(
-                            st.session_state.estrutura_rascunho
-                        )
-
-                        # ------------------------------------
-                        # 4. COMPOSIÇÃO VÉRTICE
-                        # ------------------------------------
-
-                        img_final = renderizar_arte_final(
-                            raw_bytes,
-                            headline_texto,
-                            subtextos,
-                            cta,
-                        )
-
-                        buffer = io.BytesIO()
-
-                        img_final.save(
-                            buffer,
-                            format="PNG",
-                            optimize=True,
-                        )
-
-                        st.session_state.imagem_processada_bytes = (
-                            buffer.getvalue()
-                        )
-
-                        st.rerun()
-
-                    except Exception as erro:
-                        st.error(
-                            f"Erro na geração da imagem: {erro}"
-                        )
-
-            # --------------------------------------------
-            # EXIBIÇÃO — PRESERVADA
-            # --------------------------------------------
-
-            if st.session_state.imagem_processada_bytes:
-
-                col_esq, col_centro, col_dir = st.columns(
-                    [0.8, 2, 0.8]
+                prompt_visual = (
+                    pagina.get(
+                        "prompt_visual",
+                        "",
+                    )
                 )
 
-                with col_centro:
-                    st.image(
-                        st.session_state.imagem_processada_bytes,
-                        caption=(
-                            "Arte Final Pronta para Publicação "
-                            "— 1080x1350 / 4:5"
-                        ),
-                        use_container_width=True,
+                if not prompt_visual:
+                    prompt_visual = (
+                        "Premium modern professional environment "
+                        "related to the content topic, "
+                        "hyper-realistic commercial photography, "
+                        "main subject on the right side, clean "
+                        "negative space on the left, deep navy "
+                        "and royal blue atmosphere, elegant "
+                        "cinematic blue lighting"
                     )
 
-                st.download_button(
-                    label=(
-                        "📥 Baixar Arte Final Pronta "
-                        "(PNG Alta Resolução)"
-                    ),
-                    data=st.session_state.imagem_processada_bytes,
-                    file_name="vertice_arte_final.png",
-                    mime="image/png",
+                raw_bytes = gerar_fundo_ideogram(
+                    prompt_visual
                 )
+
+                imagem_final = renderizar_arte_final(
+                    raw_bytes,
+                    pagina.get(
+                        "headline",
+                        "",
+                    ),
+                    pagina.get(
+                        "apoios",
+                        [],
+                    ),
+                    pagina.get(
+                        "cta",
+                        "",
+                    ),
+                )
+
+                buffer = io.BytesIO()
+
+                imagem_final.save(
+                    buffer,
+                    format="PNG",
+                    optimize=True,
+                )
+
+                st.session_state.imagem_processada_bytes = (
+                    buffer.getvalue()
+                )
+
+            except Exception as erro:
+                st.error(
+                    f"Erro na geração da imagem: {erro}"
+                )
+                st.stop()
+
+    # --------------------------------------------------------
+    # RESULTADO
+    # --------------------------------------------------------
+
+    st.subheader(
+        "✨ Arte Final — Vértice"
+    )
+
+    col_esq, col_centro, col_dir = st.columns(
+        [0.8, 2, 0.8]
+    )
+
+    with col_centro:
+        st.image(
+            st.session_state.imagem_processada_bytes,
+            caption=(
+                "1080x1350 • 4:5 • "
+                "Composição Vértice"
+            ),
+            use_container_width=True,
+        )
+
+    st.download_button(
+        label=(
+            "📥 Baixar Arte Final "
+            "(PNG Alta Resolução)"
+        ),
+        data=st.session_state.imagem_processada_bytes,
+        file_name=(
+            "vertice_arte_final.png"
+        ),
+        mime="image/png",
+    )
+
+    # --------------------------------------------------------
+    # LEGENDA
+    # --------------------------------------------------------
+
+    exibir_legenda(
+        conteudo
+    )
+
+    # --------------------------------------------------------
+    # CARROSSEL
+    # --------------------------------------------------------
+
+    if (
+        st.session_state.formato
+        == "Carrossel (4:5)"
+        and len(paginas_conteudo) > 1
+    ):
 
         st.divider()
 
-        st.subheader(
-            "📝 Rascunho & Legenda Estratégica:"
+        st.write(
+            f"Página "
+            f"{pagina_index + 1} "
+            f"de {len(paginas_conteudo)}"
         )
 
-        if st.session_state.estrutura_rascunho:
-            st.markdown(
-                limpar_rascunho_exibicao(
-                    st.session_state.estrutura_rascunho
+        if pagina_index + 1 < len(paginas_conteudo):
+
+            if st.button(
+                "➡️ Gerar próxima página",
+            ):
+                st.session_state.pagina_atual = (
+                    pagina_index + 1
                 )
+                st.session_state.imagem_processada_bytes = None
+                st.rerun()
+
+        else:
+            st.success(
+                "Carrossel concluído."
             )
+
+    else:
+
+        st.divider()
+
+        if st.button(
+            "🔄 Criar outro conteúdo"
+        ):
+            resetar_fluxo()
+            st.rerun()
