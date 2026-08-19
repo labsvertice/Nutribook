@@ -1,7 +1,6 @@
 import importlib
 import io
 import os
-import re
 import time
 from PIL import Image, ImageDraw, ImageFont
 import google.generativeai as genai
@@ -36,7 +35,6 @@ st.markdown(
         background-color: #0a192f; 
     }
     
-    /* BOTÕES PADRÃO */
     .stButton>button, .stDownloadButton>button { 
         background-color: #f4c70f !important; 
         color: #000000 !important; 
@@ -49,7 +47,6 @@ st.markdown(
         padding: 10px 15px !important;
     }
 
-    /* BOTÕES DE SELEÇÃO DE IDEIAS */
     div[data-testid="stVerticalBlock"] div.stButton > button {
         background-color: #0e2447 !important;
         color: #ffffff !important;
@@ -112,9 +109,9 @@ GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 REPLICATE_API_TOKEN = st.secrets.get("REPLICATE_API_TOKEN", "")
 
 
-# --- FUNÇÃO DE MOTOR TIPOGRÁFICO VIA CÓDIGO (PADRÃO AGÊNCIA) ---
+# --- MOTOR DE IMAGEM & TIPOGRAFIA VÉRTICE ---
 def baixar_fonte_montserrat():
-  """Baixa a fonte Montserrat-Bold oficial direto do Google Fonts."""
+  """Garante a presença do arquivo de fonte TTF oficial."""
   caminho_fonte = "Montserrat-Bold.ttf"
   if not os.path.exists(caminho_fonte):
     url_fonte = "https://github.com/google/fonts/raw/main/ofl/montserrat/static/Montserrat-Bold.ttf"
@@ -128,27 +125,47 @@ def baixar_fonte_montserrat():
   return caminho_fonte if os.path.exists(caminho_fonte) else None
 
 
-def aplicar_tipografia_codigo(
+def aplicar_gradiente_escuro(img: Image.Image) -> Image.Image:
+  """Cria uma máscara suave escura no topo da foto para dar 100% de leitura ao texto."""
+  largura, altura = img.size
+  overlay = Image.new("RGBA", (largura, altura), (0, 0, 0, 0))
+  draw = ImageDraw.Draw(overlay)
+
+  altura_gradiente = int(altura * 0.42)  # Cobre 42% do topo
+  for y in range(altura_gradiente):
+    # Opacidade suave em curva
+    alpha = int(220 * (1.0 - (y / altura_gradiente) ** 1.3))
+    draw.line([(0, y), (largura, y)], fill=(2, 11, 24, alpha))  # Azul Marinho
+
+  img_rgba = img.convert("RGBA")
+  resultado = Image.alpha_composite(img_rgba, overlay)
+  return resultado.convert("RGB")
+
+
+def renderizar_arte_final(
     image_bytes: bytes, headline_texto: str
 ) -> Image.Image:
-  """Desenha a headline em Montserrat com cor Amarelo Vértice e alto contraste."""
-  img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+  """Aplica máscara de contraste e insere a tipografia oficial Montserrat em Amarelo Vértice."""
+  img_base = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+
+  # 1. Aplica o gradiente de leitura no topo
+  img = aplicar_gradiente_escuro(img_base)
   draw = ImageDraw.Draw(img)
   largura_img, altura_img = img.size
 
-  # Carrega fonte Montserrat na escala correta da imagem
+  # 2. Configura a fonte Montserrat proporcional ao tamanho da imagem
   caminho_fonte = baixar_fonte_montserrat()
-  tamanho_fonte = int(largura_img * 0.075)  # 7.5% da largura da imagem
+  tamanho_fonte = int(largura_img * 0.065)  # Tamanho ideal para headlines
 
-  try:
-    if caminho_fonte:
+  if caminho_fonte:
+    try:
       font = ImageFont.truetype(caminho_fonte, tamanho_fonte)
-    else:
+    except Exception:
       font = ImageFont.load_default()
-  except Exception:
+  else:
     font = ImageFont.load_default()
 
-  # Tratamento da headline (Caixa Alta e Quebra de Linhas)
+  # 3. Formatação do texto
   texto_limpo = headline_texto.upper().replace('"', "").replace("*", "").strip()
   palavras = texto_limpo.split()
   linhas = []
@@ -156,16 +173,16 @@ def aplicar_tipografia_codigo(
 
   for p in palavras:
     linha_atual.append(p)
-    if len(" ".join(linha_atual)) > 15:
+    if len(" ".join(linha_atual)) > 16:
       linhas.append(" ".join(linha_atual[:-1]))
       linha_atual = [p]
   if linha_atual:
     linhas.append(" ".join(linha_atual))
 
-  # Posição vertical inicial (Topo com margem proporcional)
+  # 4. Desenho do texto centralizado
   y_pos = int(altura_img * 0.08)
-  cor_texto = (244, 199, 15)  # Amarelo Ouro (#f4c70f)
-  cor_sombra = (2, 11, 24)  # Azul Escuro (#020b18)
+  cor_texto = (244, 199, 15)  # Amarelo Ouro Vértice (#f4c70f)
+  cor_sombra = (0, 0, 0)  # Sombra preta profunda
 
   for linha in linhas:
     bbox = draw.textbbox((0, 0), linha, font=font)
@@ -173,16 +190,15 @@ def aplicar_tipografia_codigo(
     altura_linha = bbox[3] - bbox[1]
     x_pos = (largura_img - largura_texto) // 2
 
-    # Sombra de alto contraste (múltiplos offsets para criar borda espessa)
-    espessura_sombra = max(3, tamanho_fonte // 15)
+    # Borda de contorno para destacar
+    espessura_sombra = max(2, tamanho_fonte // 18)
     for dx in range(-espessura_sombra, espessura_sombra + 1):
       for dy in range(-espessura_sombra, espessura_sombra + 1):
         draw.text((x_pos + dx, y_pos + dy), linha, font=font, fill=cor_sombra)
 
-    # Texto principal em Amarelo Vértice
+    # Texto principal
     draw.text((x_pos, y_pos), linha, font=font, fill=cor_texto)
-
-    y_pos += altura_linha + int(tamanho_fonte * 0.3)
+    y_pos += altura_linha + int(tamanho_fonte * 0.4)
 
   return img
 
@@ -252,7 +268,7 @@ def gerar_estrutura_gemini(
     | [frase curta 2]
 
     PROMPT VISUAL IDEOGRAM (EM INGLÊS):
-    [Descrição em inglês da cena corporativa em azul marinho e dourado. Especifique NENHUM TEXTO NA IMAGEM. Finalize com: 'clean background, corporate photography, cinematic lighting, NO TEXT, NO WORDS, NO LOGOS, NO WATERMARKS']
+    [Crie uma cena corporativa HIPER-REALISTA de um executivo real em um escritório autêntico. Sem ilustrações 3D. Termine estritamente com: 'RAW photo, shot on 35mm lens, authentic corporate office, realistic lighting, highly detailed real human skin, depth of field, NO CGI, NO 3D, NO GRAPHICS, NO TEXT, NO WORDS, NO LOGOS, NO WATERMARKS']
 
     📌 **LEGENDA DO POST**
     [Legenda em linhas curtas e encerramento oficial]
@@ -387,24 +403,19 @@ else:
         st.rerun()
 
   elif st.session_state.etapa == 8:
-    st.subheader(
-        "ETAPA 8: Renderização Agência Vértice (Imagem Limpa + Tipografia"
-        " Montserrat)"
-    )
+    st.subheader("ETAPA 8: Renderização Hiper-Realista Pronta para Postar")
 
     if not st.session_state.imagem_processada_bytes:
       with st.spinner(
-          "Gerando imagem de fundo e aplicando tipografia oficial..."
+          "Capturando foto hiper-realista e aplicando marca Vértice..."
       ):
         try:
-          # Prompt sem texto para a IA de imagem
           prompt_fundo = (
-              "A stressed corporate executive sitting at a modern glass desk,"
-              " surrounded by multiple glowing monitors with messy"
-              " spreadsheets. Deep dark navy blue office background, warm"
-              " golden lighting accents, cinematic atmosphere, photorealistic"
-              " 8k, NO TEXT, NO WORDS, NO LOGOS, NO WATERMARKS, clean background"
-              " composition."
+              "RAW photo, authentic photography of a focused executive in a"
+              " high-end modern boardroom, shot on 35mm lens, natural office"
+              " lighting, dark navy blue atmosphere, real human skin texture,"
+              " cinematic depth of field, 8k resolution, NO CGI, NO 3D, NO"
+              " GRAPHICS, NO TEXT, NO WORDS, NO LOGOS, NO WATERMARKS"
           )
 
           if (
@@ -422,24 +433,26 @@ else:
                 if prox:
                   prompt_fundo = (
                       prox
-                      + ", clean background composition, NO TEXT, NO WORDS, NO"
-                      " LOGOS, NO WATERMARKS"
+                      + ", RAW photo, shot on 35mm lens, realistic lighting,"
+                      " NO CGI, NO 3D, NO GRAPHICS, NO TEXT, NO WORDS, NO LOGOS,"
+                      " NO WATERMARKS"
                   )
                   break
 
+          # Executa renderização no modo REALISTIC (Fotografia pura)
           output = replicate.run(
               "ideogram-ai/ideogram-v2",
               input={
                   "prompt": prompt_fundo,
                   "aspect_ratio": "3:4",
-                  "style_type": "Design",
-                  "magic_prompt_option": "Auto",
+                  "style_type": "Realistic",
+                  "magic_prompt_option": "Off",
               },
           )
           image_url = str(output[0]) if isinstance(output, list) else str(output)
           raw_bytes = requests.get(image_url).content
 
-          # Extrai a headline do rascunho de forma garantida
+          # Identifica a Headline no Rascunho
           headline_texto = st.session_state.ideia_escolhida
           if st.session_state.estrutura_rascunho:
             for line in st.session_state.estrutura_rascunho.split("\n"):
@@ -449,8 +462,8 @@ else:
                   headline_texto = partes[1].strip()
                   break
 
-          # Aplica a tipografia perfeita via código
-          img_final = aplicar_tipografia_codigo(raw_bytes, headline_texto)
+          # Processa imagem final com contraste + tipografia embutida
+          img_final = renderizar_arte_final(raw_bytes, headline_texto)
 
           buf = io.BytesIO()
           img_final.save(buf, format="PNG")
@@ -458,19 +471,19 @@ else:
           st.rerun()
 
         except Exception as err:
-          st.error(f"Erro no processamento da imagem: {err}")
+          st.error(f"Erro na geração da imagem: {err}")
 
     if st.session_state.imagem_processada_bytes:
       col_esq, col_centro, col_dir = st.columns([0.8, 2, 0.8])
       with col_centro:
         st.image(
             st.session_state.imagem_processada_bytes,
-            caption="Arte Final Vértice (Zero Erro Tipográfico)",
+            caption="Arte Final Pronta para Publicação",
             use_container_width=True,
         )
 
       st.download_button(
-          label="📥 Baixar Arte Final (PNG Alta Resolução)",
+          label="📥 Baixar Arte Final Pronta (PNG Alta Resolução)",
           data=st.session_state.imagem_processada_bytes,
           file_name="vertice_arte_final.png",
           mime="image/png",
