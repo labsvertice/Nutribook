@@ -135,7 +135,7 @@ REPLICATE_API_TOKEN = st.secrets.get("REPLICATE_API_TOKEN", "")
 @st.cache_data(show_spinner=False)
 def gerar_ideias_gemini(api_key: str, base_conhecimento: str) -> list:
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel("gemini-3.5-flash-lite")
     prompt = f"""
     Você é o estrategista de conteúdo do especialista Jean Victor.
     Base de Conhecimento do Produto:
@@ -152,7 +152,7 @@ def gerar_ideias_gemini(api_key: str, base_conhecimento: str) -> list:
 @st.cache_data(show_spinner=False)
 def gerar_estrutura_gemini(api_key: str, ideia: str, formato: str, paginas: int, base_conhecimento: str) -> str:
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-2.0-flash")
+    model = genai.GenerativeModel("gemini-3.5-flash-lite")
     
     regra_bordao = ""
     if formato == "Reels (Apenas Roteiro)":
