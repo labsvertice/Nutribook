@@ -341,7 +341,7 @@ else:
                     st.session_state.estrutura_rascunho = None
                     st.rerun()
 
-    # --- ETAPA 8: EXECUÇÃO VISUAL (REPLICATE / FLUX) ---
+   # --- ETAPA 8: EXECUÇÃO VISUAL (REPLICATE / FLUX) ---
     elif st.session_state.etapa == 8:
         st.subheader("ETAPA 8: Renderização Visual Vértice")
         
@@ -349,22 +349,16 @@ else:
             st.success("O Roteiro para Reels foi concluído na etapa anterior.")
         else:
             if not st.session_state.imagem_gerada_url:
-                with st.spinner("Renderizando arte no FLUX.1 [dev] no padrão Vértice (Aguarde até 45s)..."):
+                with st.spinner("Renderizando arte no FLUX.1 [dev] no padrão Vértice (Aguarde de 20s a 30s)..."):
                     try:
                         prompt_flux = f"""
                         {config_perfil['prompt_visual_flux']}
                         Topic/Headline: '{st.session_state.ideia_escolhida}'.
                         """
 
-                        # Uso direto do Replicate com modelo específico e timeout seguro
-                        client = replicate.Client(api_token=REPLICATE_API_TOKEN)
-                        
-                        # Inicia a predição assíncrona para evitar estouro de timeout no HTTP client
-                        model = client.models.get("black-forest-labs/flux-dev")
-                        version = model.versions.get("39a1b0cd22d572f6a73c015b6343c1dc1180497551048b2600ff502a831e5c0e")
-                        
-                        prediction = client.predictions.create(
-                            version=version,
+                        # Chamada direta pelo alias oficial do modelo no Replicate
+                        output = replicate.run(
+                            "black-forest-labs/flux-dev",
                             input={
                                 "prompt": prompt_flux,
                                 "aspect_ratio": "4:5",
@@ -373,18 +367,9 @@ else:
                             }
                         )
 
-                        # Loop de verificação simples de status
-                        while prediction.status not in ["succeeded", "failed", "canceled"]:
-                            time.sleep(2)
-                            prediction.reload()
-
-                        if prediction.status == "succeeded":
-                            output = prediction.output
-                            image_url = output[0] if isinstance(output, list) else str(output)
-                            st.session_state.imagem_gerada_url = image_url
-                            st.rerun()
-                        else:
-                            st.error(f"Falha no processamento da imagem: {prediction.error}")
+                        image_url = output[0] if isinstance(output, list) else str(output)
+                        st.session_state.imagem_gerada_url = image_url
+                        st.rerun()
 
                     except Exception as err:
                         st.error(f"Erro ao processar imagem no Replicate: {err}")
