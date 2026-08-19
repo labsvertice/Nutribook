@@ -159,7 +159,7 @@ def gerar_estrutura_gemini(api_key: str, ideia: str, formato: str, paginas: int,
     model = genai.GenerativeModel("gemini-3.5-flash-lite")
 
     prompt = f"""
-    Você é o estrategista de copy da Plataforma Vértice para Jean Victor.
+    Você é o estrategista de copy do Jean Victor.
     Tema: '{ideia}'
     Formato: {formato} ({paginas} páginas se carrossel)
     
@@ -167,25 +167,41 @@ def gerar_estrutura_gemini(api_key: str, ideia: str, formato: str, paginas: int,
     {base_conhecimento}
     
     ---
-    ESTRUTURA OBRIGATÓRIA DA RESPOSTA:
+    REGRAS DE ESCRITA DA LEGENDA (OBRIGATÓRIO):
+    1. MÁXIMO DE 4 A 7 PALAVRAS POR LINHA.
+    2. NUNCA FAÇA PARÁGRAFOS TRADICIONAIS OU BLOCOS DE TEXTO.
+    3. CADA FRASE DEVE FICAR EM UMA LINHA ISOLADA.
+    4. USE O FORMATO ABAIXO COMO REFERÊNCIA DE RITMO:
+
+    EXEMPLO DE PADRÃO ESPERADO PARA A LEGENDA:
+    Quando tudo vira indicador,
+    nada mais é analisado.
+
+    ❌ mais dashboards
+    ❌ mais relatórios
+    ❌ menos tempo pra decidir
+
+    Cada área precisa de foco.
+    Clareza gera velocidade.
+
+    VAMOS TRANSFORMAR SEUS DADOS EM DECISÃO? 🚀
+
+    ---
+    ESTRUTURA DE SAÍDA:
 
     📌 **TEXTO DA ARTE / CARROSSEL**
     (Formato: {formato})
 
     HEADLINE CAPA:
-    [Escreva a headline principal, impactante, em caixa baixa com palavras em destaque]
+    [Escreva em caixa baixa, provocativa e direta]
 
     SUBTEXTOS DE APOIO:
-    | [subtexto 1 de impacto direto]
-    | [subtexto 2 de contraste visual]
-    | [subtexto 3 de fechamento da capa]
+    | [frase curta 1]
+    | [frase curta 2]
+    | [frase curta 3]
 
     📌 **LEGENDA DO POST**
-    - MANTENHA A LEGENDA EXTREMAMENTE ENXUTA. EVITE TRECHOS LONGOS OU PARÁGRAFOS DENSOS.
-    - Use frases curtas de 4 a 6 palavras por linha.
-    - Use marcadores visuais (`❌` para erros, `|` para reforço).
-    - Finalize estritamente com o jargão/CTA do produto fornecido na base de conhecimento.
-    ---
+    [Escreva a legenda aplicando ESTRITAMENTE as regras de linhas curtas e o encerramento correto do produto]
     """
     res = model.generate_content(prompt)
     return res.text
@@ -270,7 +286,7 @@ else:
         if st.button("Avançar para Ideação"):
             st.session_state.opcao_ideia = op
             st.session_state.num_paginas = paginas
-            st.session_state.ideias_lista = []  # Reseta para gerar novas ao carregar
+            st.session_state.ideias_lista = []
             st.session_state.etapa = 4
             st.rerun()
 
@@ -282,7 +298,6 @@ else:
         st.subheader(f"ETAPA 4: Definição do Conteúdo — {st.session_state.produto}")
         
         if st.session_state.opcao_ideia == "2️⃣ Quero ideias estratégicas":
-            # GERAÇÃO AUTOMÁTICA DAS 5 IDEIAS (SEM BOTÃO INTERMEDIÁRIO)
             if not st.session_state.ideias_lista:
                 with st.spinner("Analisando base de conhecimento e gerando 5 ideias estratégicas..."):
                     try:
@@ -368,21 +383,9 @@ else:
             if not st.session_state.imagem_gerada_url:
                 with st.spinner("Renderizando arte e iluminação no FLUX.1 [dev] (Aguarde de 15s a 25s)..."):
                     try:
-                        texto_headline = st.session_state.ideia_escolhida
-                        if st.session_state.estrutura_rascunho and "HEADLINE" in st.session_state.estrutura_rascunho.upper():
-                            lines = st.session_state.estrutura_rascunho.split("\n")
-                            for idx, line in enumerate(lines):
-                                if "HEADLINE" in line.upper() and idx + 1 < len(lines):
-                                    prox = lines[idx + 1].strip()
-                                    if prox:
-                                        texto_headline = prox.replace('"', '')
-                                        break
-
-                        prompt_flux = f"""
-                        High-end professional executive social media poster design. 
-                        Dark deep navy blue studio lighting with strong bright blue side rim light glow and a sharp spotlight on a sleek laptop displaying dark financial charts.
-                        Centered bold high-contrast white and yellow heavy typography overlay text reading: "{texto_headline}".
-                        Clean composition, executive corporate aesthetic, premium typography contrast, 8k resolution render.
+                        # PROMPT VISUAL DE ALTA PRECISÃO (Sem forçar frases longas dentro do gerador de imagem)
+                        prompt_flux = """
+                        Executive social media poster design, dark navy blue background, modern sleek workstation with dark analytics dashboard on laptop screen, elegant spotlight overhead, sharp bright yellow and white bold clean layout typography, executive corporate aesthetic, minimal layout, 8k resolution, ultra detailed render.
                         """
 
                         output = replicate.run(
