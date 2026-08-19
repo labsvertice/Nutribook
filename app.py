@@ -4,16 +4,57 @@ import replicate
 import importlib
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Plataforma Vértice 🚀 | Jean Victor", layout="centered")
+st.set_page_config(page_title="Plataforma Vértice | Jean Victor", layout="centered")
 
-# Visual escuro premium alinhado à paleta do Instagram (#020b18)
+# CSS Customizado com Fonte Montserrat e Paleta Vértice
 st.markdown("""
     <style>
-    .stApp { background-color: #020b18; color: #ffffff; }
-    [data-testid="stSidebar"] { background-color: #0a192f; }
-    .stButton>button { background-color: #f4c70f; color: #000000; font-weight: bold; border-radius: 6px; width: 100%; height: 48px; border: none; }
-    .stSelectbox, .stTextInput, .stRadio { color: #ffffff; }
-    div[data-baseweb="radio"] label { color: #ffffff !important; }
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap');
+
+    html, body, [class*="css"], .stApp {
+        font-family: 'Montserrat', sans-serif !important;
+        background-color: #020b18;
+        color: #ffffff;
+    }
+    
+    [data-testid="stSidebar"] { 
+        background-color: #0a192f; 
+    }
+    
+    .stButton>button { 
+        background-color: #f4c70f; 
+        color: #000000; 
+        font-family: 'Montserrat', sans-serif !important;
+        font-weight: 700; 
+        border-radius: 6px; 
+        width: 100%; 
+        height: 48px; 
+        border: none; 
+    }
+    
+    .stSelectbox, .stTextInput, .stRadio { 
+        font-family: 'Montserrat', sans-serif !important;
+        color: #ffffff; 
+    }
+    
+    div[data-baseweb="radio"] label { 
+        font-family: 'Montserrat', sans-serif !important;
+        color: #ffffff !important; 
+    }
+
+    .titulo-vertice {
+        color: #f4c70f;
+        font-weight: 800;
+        font-size: 2.3rem;
+        margin-bottom: 0px;
+        line-height: 1.2;
+    }
+    
+    .subtitulo-vertice {
+        color: #8892b0;
+        font-size: 0.95rem;
+        margin-top: 4px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -21,13 +62,15 @@ st.markdown("""
 col_logo, col_titulo = st.columns([1, 4])
 with col_logo:
     try:
-        st.image("logo.png", width=90)
+        st.image("logo.png", width=85)
     except Exception:
-        st.write("🚀")
+        pass
 
 with col_titulo:
-    st.title("Plataforma Vértice 🚀")
-    st.caption("Motor Estratégico de Conteúdo Premium — Jean Victor")
+    st.markdown('<p class="titulo-vertice">Plataforma Vértice</p>', unsafe_allow_html=True)
+    st.markdown('<p class="subtitulo-vertice">Motor Estratégico de Conteúdo Premium — Jean Victor</p>', unsafe_allow_html=True)
+
+st.write("---")
 
 # --- CHAVES DE API ---
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
