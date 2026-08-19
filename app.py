@@ -4,7 +4,9 @@ import replicate
 import importlib
 import requests
 import time
-import re
+import io
+import os
+from PIL import Image, ImageDraw, ImageFont
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Plataforma Vértice | Jean Victor", layout="centered")
@@ -30,11 +32,7 @@ st.markdown("""
         background-color: #0a192f; 
     }
     
-    [data-testid="stSidebar"] > div:first-child {
-        padding-top: 1.5rem !important;
-    }
-    
-    /* ESTILO DOS BOTÕES PADRÃO */
+    /* BOTÕES PADRÃO */
     .stButton>button, .stDownloadButton>button { 
         background-color: #f4c70f !important; 
         color: #000000 !important; 
@@ -43,12 +41,11 @@ st.markdown("""
         border-radius: 6px !important; 
         width: 100% !important; 
         min-height: 48px !important;
-        height: auto !important;
         border: none !important; 
         padding: 10px 15px !important;
     }
 
-    /* ESTILO ESPECÍFICO PARA OS BOTÕES DE SELEÇÃO DE IDEIAS */
+    /* BOTÕES DE SELEÇÃO DE IDEIAS */
     div[data-testid="stVerticalBlock"] div.stButton > button {
         background-color: #0e2447 !important;
         color: #ffffff !important;
@@ -56,43 +53,20 @@ st.markdown("""
         font-weight: 600 !important;
         text-align: left !important;
         line-height: 1.4 !important;
-        transition: all 0.2s ease-in-out;
     }
 
     div[data-testid="stVerticalBlock"] div.stButton > button:hover {
         background-color: #f4c70f !important;
         color: #000000 !important;
-        border-color: #f4c70f !important;
     }
 
-    div[data-testid="stVerticalBlock"] div.stButton > button:focus, 
-    div[data-testid="stVerticalBlock"] div.stButton > button:active {
-        background-color: #1a365d !important;
-        color: #ffffff !important;
-        border-color: #f4c70f !important;
-        box-shadow: 0 0 8px rgba(244, 199, 15, 0.4) !important;
-    }
-    
-    .stSelectbox, .stTextInput, .stRadio { 
-        font-family: 'Montserrat', sans-serif !important;
-        color: #ffffff; 
-    }
-    
-    div[data-baseweb="radio"] label { 
-        font-family: 'Montserrat', sans-serif !important;
-        color: #ffffff !important; 
-    }
-
-    /* Cabeçalho Principal */
     h1.titulo-vertice {
         color: #f4c70f !important;
         font-family: 'Montserrat', sans-serif !important;
         font-weight: 900 !important;
         font-size: 3.2rem !important;
         margin: 0 !important;
-        padding: 0 !important;
         line-height: 1.0 !important;
-        letter-spacing: -1px !important;
     }
     
     p.subtitulo-vertice {
@@ -100,21 +74,14 @@ st.markdown("""
         font-family: 'Montserrat', sans-serif !important;
         font-size: 1.1rem !important;
         margin-top: 4px !important;
-        margin-bottom: 0px !important;
-        font-weight: 500 !important;
     }
 
-    hr {
-        margin-top: 0.8rem !important;
-        margin-bottom: 1rem !important;
-        border-color: #1e2d4a !important;
-    }
+    hr { border-color: #1e2d4a !important; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- LOGO & TÍTULO ---
+# --- CABEÇALHO ---
 col_logo, col_titulo = st.columns([1, 3.5], vertical_alignment="center")
-
 with col_logo:
     try:
         st.image("logo.png", width=125)
@@ -131,8 +98,72 @@ st.write("---")
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 REPLICATE_API_TOKEN = st.secrets.get("REPLICATE_API_TOKEN", "")
 
+# --- FUNÇÃO DE MOTOR TIPOGRÁFICO VIA CÓDIGO (PADRÃO AGÊNCIA) ---
+def baixar_fonte_montserrat():
+    """Garante o download da fonte Montserrat Bold para renderização nativa."""
+    caminho_fonte = "Montserrat-Bold.ttf"
+    if not os.path.exists(caminho_fonte):
+        url_fonte = "https://github.com/google/fonts/raw/main/ofl/montserrat/Montserrat-Bold.ttf"
+        res = requests.get(url_fonte)
+        if res.status_code == 200:
+            with open(caminho_fonte, "wb") as f:
+                f.write(res.content)
+    return caminho_fonte if os.path.exists(caminho_fonte) else None
+
+def aplicar_tipografia_codigo(image_bytes: bytes, headline_texto: str) -> Image.Image:
+    """Desenha a headline em Montserrat com cor Amarelo Vértice e sombra de alto contraste."""
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    draw = ImageDraw.Draw(img)
+    largura_img, altura_img = img.size
+
+    # Carrega fonte Montserrat
+    caminho_fonte = baixar_fonte_montserrat()
+    tamanho_fonte = int(largura_img * 0.065) # Proporcional à imagem
+    
+    try:
+        if caminho_fonte:
+            font = ImageFont.truetype(caminho_fonte, tamanho_fonte)
+        else:
+            font = ImageFont.load_default()
+    except Exception:
+        font = ImageFont.load_default()
+
+    # Formata texto para caixa alta e quebra em linhas curtas
+    texto_limpo = headline_texto.upper().strip()
+    palavras = texto_limpo.split()
+    linhas = []
+    linha_atual = []
+
+    for p in palavras:
+        linha_atual.append(p)
+        if len(" ".join(linha_atual)) > 18:
+            linhas.append(" ".join(linha_atual[:-1]))
+            linha_atual = [p]
+    if linha_atual:
+        linhas.append(" ".join(linha_atual))
+
+    # Posição vertical inicial (Topo com margem)
+    y_pos = int(altura_img * 0.10)
+    cor_texto = (244, 199, 15)  # Amarelo Ouro Vértice (#f4c70f)
+    cor_sombra = (2, 11, 24)    # Azul Escuro Vértice (#020b18)
+
+    for linha in linhas:
+        bbox = draw.textbbox((0, 0), linha, font=font)
+        largura_texto = bbox[2] - bbox[0]
+        altura_linha = bbox[3] - bbox[1]
+        x_pos = (largura_img - largura_texto) // 2
+
+        # Sombra de alto contraste para leitura perfeita
+        deslocamento = max(2, tamanho_fonte // 20)
+        draw.text((x_pos + deslocamento, y_pos + deslocamento), linha, font=font, fill=cor_sombra)
+        # Texto principal
+        draw.text((x_pos, y_pos), linha, font=font, fill=cor_texto)
+
+        y_pos += altura_linha + int(tamanho_fonte * 0.35)
+
+    return img
+
 def limpar_rascunho_exibicao(texto: str) -> str:
-    """Remove a seção do Prompt Visual da tela antes de mostrar ao usuário."""
     linhas = texto.split("\n")
     resultado = []
     ignorar = False
@@ -140,7 +171,7 @@ def limpar_rascunho_exibicao(texto: str) -> str:
         if "PROMPT VISUAL IDEOGRAM" in linha.upper():
             ignorar = True
             continue
-        if ignorar and (linha.startswith("📌") or linha.startswith("LEGENDA") or "LEGENDA DO POST" in linha.upper()):
+        if ignorar and (linha.startswith("📌") or "LEGENDA DO POST" in linha.upper()):
             ignorar = False
         if not ignorar:
             resultado.append(linha)
@@ -148,23 +179,8 @@ def limpar_rascunho_exibicao(texto: str) -> str:
 
 def gerar_ideias_gemini(api_key: str, base_conhecimento: str) -> list:
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(
-        "gemini-3.5-flash-lite",
-        generation_config={"temperature": 0.95}
-    )
-    
-    prompt = f"""
-    Estrategista Jean Victor.
-    Base: {base_conhecimento}
-    Seed de variação temporária: {time.time()}
-
-    Gere 5 ideias ÚNICAS, DIFERENTES e VARIADAS de temas para o post.
-    Surpreenda na escolha dos ângulos estratégicos.
-    SEM bordão, slogan, CTA ou encerramento no final.
-    Responda em formato numerado:
-    1. Ideia 1
-    2. Ideia 2
-    """
+    model = genai.GenerativeModel("gemini-3.5-flash-lite", generation_config={"temperature": 0.95})
+    prompt = f"Estrategista Jean Victor. Base: {base_conhecimento}. Seed: {time.time()}. Gere 5 ideias ÚNICAS e VARIADAS. Formato numerado: 1. Ideia"
     res = model.generate_content(prompt)
     linhas = [line.strip() for line in res.text.split("\n") if line.strip() and line.strip()[0].isdigit()]
     return linhas if linhas else [res.text]
@@ -182,57 +198,36 @@ def gerar_estrutura_gemini(api_key: str, ideia: str, formato: str, paginas: int,
     BASE DE CONHECIMENTO DO PRODUTO:
     {base_conhecimento}
     
-    ---
-    REGRAS DE ESCRITA DA LEGENDA (OBRIGATÓRIO):
+    REGRAS DA LEGENDA:
     1. MÁXIMO DE 4 A 7 PALAVRAS POR LINHA.
-    2. NUNCA FAÇA PARÁGRAFOS TRADICIONAIS OU BLOCOS DE TEXTO.
-    3. CADA FRASE DEVE FICAR EM UMA LINHA ISOLADA.
-    4. USE O FORMATO ABAIXO COMO REFERÊNCIA DE RITMO:
+    2. CADA FRASE EM UMA LINHA ISOLADA.
 
-    EXEMPLO DE PADRÃO ESPERADO PARA A LEGENDA:
-    Quando tudo vira indicador,
-    nada mais é analisado.
-
-    ❌ mais dashboards
-    ❌ mais relatórios
-    ❌ menos tempo pra decidir
-
-    Cada área precisa de foco.
-    Clareza gera velocidade.
-
-    VAMOS TRANSFORMAR SEUS DADOS EM DECISÃO? 🚀
-
-    ---
     ESTRUTURA DE SAÍDA:
 
     📌 **TEXTO DA ARTE / CARROSSEL**
-    (Formato: {formato})
-
     HEADLINE CAPA:
-    [Escreva em caixa baixa, provocativa e direta]
+    [Escreva a frase principal provocativa]
 
     SUBTEXTOS DE APOIO:
     | [frase curta 1]
     | [frase curta 2]
-    | [frase curta 3]
 
     PROMPT VISUAL IDEOGRAM (EM INGLÊS):
-    [Descrição detalhada em inglês da cena corporativa em azul escuro e amarelo. Especifique tipografia gigante, em negrito e com alto contraste no topo da imagem. Inclua a frase principal curta entre aspas. Finalize com: 'no watermarks, no logos, clean high contrast typography, perfect spelling']
+    [Descrição em inglês da cena corporativa em azul marinho e dourado. Especifique NENHUM TEXTO NA IMAGEM. Finalize com: 'clean background, corporate photography, cinematic lighting, NO TEXT, NO WORDS, NO LOGOS, NO WATERMARKS']
 
     📌 **LEGENDA DO POST**
-    [Escreva a legenda aplicando ESTRITAMENTE as regras de linhas curtas e o encerramento correto do produto]
+    [Legenda em linhas curtas e encerramento oficial]
     """
     res = model.generate_content(prompt)
     return res.text
 
-# --- CARREGA CONFIGURAÇÃO VISUAL DO PERFIL ---
+# --- CARREGA CONFIGURAÇÃO DO PERFIL ---
 try:
     config_perfil = importlib.import_module("profiles.jean_victor.config").CONFIG
-except Exception as e:
-    st.error(f"Erro ao carregar configurações do perfil: {e}")
+except Exception:
+    st.error("Erro ao carregar configurações do perfil.")
     st.stop()
 
-# --- MAPEAMENTO DOS PRODUTOS ---
 MAPA_PRODUTOS = {
     "1️⃣ Dados": "profiles.jean_victor.dados",
     "2️⃣ Apresentações Profissionais": "profiles.jean_victor.apresentacoes",
@@ -242,26 +237,11 @@ MAPA_PRODUTOS = {
 }
 
 # --- ESTADOS DO FLUXO ---
-if "etapa" not in st.session_state:
-    st.session_state.etapa = 1
-if "formato" not in st.session_state:
-    st.session_state.formato = None
-if "produto" not in st.session_state:
-    st.session_state.produto = None
-if "opcao_ideia" not in st.session_state:
-    st.session_state.opcao_ideia = None
-if "num_paginas" not in st.session_state:
-    st.session_state.num_paginas = 1
-if "ideia_escolhida" not in st.session_state:
-    st.session_state.ideia_escolhida = ""
-if "ideias_lista" not in st.session_state:
-    st.session_state.ideias_lista = []
-if "estrutura_rascunho" not in st.session_state:
-    st.session_state.estrutura_rascunho = None
-if "imagem_gerada_url" not in st.session_state:
-    st.session_state.imagem_gerada_url = None
+for key in ["etapa", "formato", "produto", "opcao_ideia", "num_paginas", "ideia_escolhida", "ideias_lista", "estrutura_rascunho", "imagem_processada_bytes"]:
+    if key not in st.session_state:
+        st.session_state[key] = 1 if key == "etapa" else None
 
-# --- PAINEL SIDEBAR ---
+# --- SIDEBAR ---
 with st.sidebar:
     try:
         st.image("logo.png", use_container_width=True)
@@ -269,8 +249,8 @@ with st.sidebar:
         pass
     st.write("---")
     if st.button("🔄 Iniciar Novo Conteúdo"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
+        for k in list(st.session_state.keys()):
+            del st.session_state[k]
         st.rerun()
 
 # --- PASSO 0: FORMATO ---
@@ -280,183 +260,118 @@ if st.session_state.formato is None:
     if st.button("Confirmar Formato"):
         st.session_state.formato = fmt
         st.rerun()
-
 else:
     st.info(f"📌 Formato selecionado: **{st.session_state.formato}**")
 
-    # --- ETAPA 1: ESCOLHA DO PRODUTO ---
     if st.session_state.etapa == 1:
         st.subheader("ETAPA 1: Qual é o Produto?")
-        prod = st.radio("Selecione uma das opções abaixo:", list(MAPA_PRODUTOS.keys()))
+        prod = st.radio("Selecione:", list(MAPA_PRODUTOS.keys()))
         if st.button("Avançar para Etapa 2"):
             st.session_state.produto = prod
             st.session_state.etapa = 2
             st.rerun()
 
-    # --- ETAPA 2 & 3: ORIGEM DA IDEIA ---
     elif st.session_state.etapa == 2:
         st.subheader("ETAPA 2: Origem da Ideia")
         op = st.radio("Como deseja prosseguir?", ["1️⃣ Já tenho ideia", "2️⃣ Quero ideias estratégicas"])
-        
-        paginas = 1
-        if st.session_state.formato == "Carrossel (4:5)":
-            paginas = st.number_input("ETAPA 3: Quantidade de páginas do carrossel:", min_value=3, max_value=10, value=5)
-
+        paginas = 5 if st.session_state.formato == "Carrossel (4:5)" else 1
         if st.button("Avançar para Ideação"):
             st.session_state.opcao_ideia = op
             st.session_state.num_paginas = paginas
-            st.session_state.ideias_lista = []
             st.session_state.etapa = 4
             st.rerun()
 
-    # --- ETAPA 4: DEFINIÇÃO DO CONTEÚDO ---
     elif st.session_state.etapa == 4:
-        modulo_produto = importlib.import_module(MAPA_PRODUTOS[st.session_state.produto])
-        base_conhecimento = modulo_produto.CONHECIMENTO
-
+        modulo = importlib.import_module(MAPA_PRODUTOS[st.session_state.produto])
         st.subheader(f"ETAPA 4: Definição do Conteúdo — {st.session_state.produto}")
         
         if st.session_state.opcao_ideia == "2️⃣ Quero ideias estratégicas":
             if not st.session_state.ideias_lista:
-                with st.spinner("Analisando base de conhecimento e gerando 5 ideias estratégicas..."):
-                    try:
-                        st.session_state.ideias_lista = gerar_ideias_gemini(GEMINI_API_KEY, base_conhecimento)
-                        st.rerun()
-                    except Exception as err:
-                        st.error(f"Erro na conexão com o Gemini: {err}")
+                st.session_state.ideias_lista = gerar_ideias_gemini(GEMINI_API_KEY, modulo.CONHECIMENTO)
+                st.rerun()
 
-            if st.session_state.ideias_lista:
-                st.write("**Clique em uma das opções abaixo para selecionar:**")
-                for i, idx_ideia in enumerate(st.session_state.ideias_lista):
-                    if st.button(f"{idx_ideia}", key=f"btn_ideia_{i}"):
-                        st.session_state.ideia_escolhida = idx_ideia
-                        st.session_state.estrutura_rascunho = None
-                        st.session_state.imagem_gerada_url = None
-                        st.session_state.etapa = 5
-                        st.rerun()
-                
-                st.write("")
-                if st.button("🔄 Gerar Outras 5 Ideias"):
-                    with st.spinner("Buscando novas abordagens estratégicas..."):
-                        try:
-                            st.session_state.ideias_lista = gerar_ideias_gemini(GEMINI_API_KEY, base_conhecimento)
-                            st.rerun()
-                        except Exception as err:
-                            st.error(f"Erro na conexão com o Gemini: {err}")
-
-        else:
-            st.session_state.ideia_escolhida = st.text_input("Digite a sua ideia/tema para estruturação:")
-            if st.session_state.ideia_escolhida:
-                if st.button("Avançar para Estruturação Estratégica"):
-                    st.session_state.estrutura_rascunho = None
-                    st.session_state.imagem_gerada_url = None
+            for i, idx_ideia in enumerate(st.session_state.ideias_lista):
+                if st.button(f"{idx_ideia}", key=f"btn_ideia_{i}"):
+                    st.session_state.ideia_escolhida = idx_ideia
                     st.session_state.etapa = 5
                     st.rerun()
+        else:
+            st.session_state.ideia_escolhida = st.text_input("Digite a sua ideia:")
+            if st.session_state.ideia_escolhida and st.button("Avançar"):
+                st.session_state.etapa = 5
+                st.rerun()
 
-    # --- ETAPA 5 & 6: ESTRUTURA E DIREÇÃO VISUAL ---
     elif st.session_state.etapa == 5:
-        modulo_produto = importlib.import_module(MAPA_PRODUTOS[st.session_state.produto])
-        base_conhecimento = modulo_produto.CONHECIMENTO
-
-        st.subheader("ETAPA 5 & 6: Estrutura Estratégica e Direção Visual")
+        modulo = importlib.import_module(MAPA_PRODUTOS[st.session_state.produto])
+        st.subheader("ETAPA 5: Estrutura Estratégica")
 
         if not st.session_state.estrutura_rascunho:
-            with st.spinner("Construindo narrativa de alta retenção no padrão Jean Victor..."):
-                try:
-                    res_texto = gerar_estrutura_gemini(
-                        GEMINI_API_KEY, 
-                        st.session_state.ideia_escolhida, 
-                        st.session_state.formato, 
-                        st.session_state.num_paginas, 
-                        base_conhecimento
-                    )
-                    st.session_state.estrutura_rascunho = res_texto
-                    st.rerun()
-                except Exception as err:
-                    st.error(f"Erro na conexão com o Gemini: {err}")
+            st.session_state.estrutura_rascunho = gerar_estrutura_gemini(
+                GEMINI_API_KEY, st.session_state.ideia_escolhida, st.session_state.formato, st.session_state.num_paginas, modulo.CONHECIMENTO
+            )
+            st.rerun()
 
-        if st.session_state.estrutura_rascunho:
-            # Exibe o rascunho sem mostrar o Prompt do Ideogram
-            st.markdown(limpar_rascunho_exibicao(st.session_state.estrutura_rascunho))
+        st.markdown(limpar_rascunho_exibicao(st.session_state.estrutura_rascunho))
+        st.divider()
 
-            st.divider()
-            st.subheader("ETAPA 7: Validação de Segurança")
-            st.write("Aprova essa estrutura e direção visual? Posso gerar a imagem da arte?")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button("✅ SIM, Aprovo! Gerar Imagem"):
-                    st.session_state.etapa = 8
-                    st.rerun()
-            with col2:
-                if st.button("❌ Refazer Estrutura"):
-                    st.session_state.estrutura_rascunho = None
-                    st.rerun()
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("✅ Aprovar e Gerar Arte"):
+                st.session_state.etapa = 8
+                st.rerun()
+        with col2:
+            if st.button("❌ Refazer Estrutura"):
+                st.session_state.estrutura_rascunho = None
+                st.rerun()
 
-    # --- ETAPA 8: EXECUÇÃO VISUAL (IDEOGRAM V2) ---
     elif st.session_state.etapa == 8:
-        st.subheader("ETAPA 8: Renderização Visual Vértice (Ideogram v2)")
-        
-        if st.session_state.formato == "Reels (Apenas Roteiro)":
-            st.success("O Roteiro para Reels foi concluído na etapa anterior.")
-        else:
-            if not st.session_state.imagem_gerada_url:
-                with st.spinner("Renderizando cena e tipografia no Ideogram v2 (Aguarde de 15s a 25s)..."):
-                    try:
-                        # Extração do prompt dinâmico
-                        prompt_ideogram = f"GIANT BOLD HEADLINE OVERLAY reading strictly: \"{st.session_state.ideia_escolhida.upper()}\". High contrast yellow and white sans-serif typography at top. Executive boardroom background in deep navy blue with golden highlights. Professional graphic design poster, clean layout, no watermarks, no logos, no typos, 8k resolution."
+        st.subheader("ETAPA 8: Renderização Agência Vértice (Imagem Limpa + Tipografia Montserrat)")
 
-                        if st.session_state.estrutura_rascunho and "PROMPT VISUAL IDEOGRAM" in st.session_state.estrutura_rascunho.upper():
-                            lines = st.session_state.estrutura_rascunho.split("\n")
-                            for idx, line in enumerate(lines):
-                                if "PROMPT VISUAL IDEOGRAM" in line.upper() and idx + 1 < len(lines):
-                                    prox = lines[idx + 1].strip()
-                                    if prox:
-                                        prompt_ideogram = prox + ", giant bold high-contrast typography, top position, no watermarks, no logos, clean composition"
-                                        break
-
-                        output = replicate.run(
-                            "ideogram-ai/ideogram-v2",
-                            input={
-                                "prompt": prompt_ideogram,
-                                "aspect_ratio": "3:4",
-                                "style_type": "Design",
-                                "magic_prompt_option": "Auto"
-                            }
-                        )
-
-                        if isinstance(output, list) and len(output) > 0:
-                            item = output[0]
-                            image_url = str(item.url) if hasattr(item, "url") else str(item)
-                        else:
-                            image_url = str(output.url) if hasattr(output, "url") else str(output)
-
-                        st.session_state.imagem_gerada_url = image_url
-                        st.rerun()
-
-                    except Exception as err:
-                        st.error(f"Erro ao processar imagem no Ideogram: {err}")
-
-            if st.session_state.imagem_gerada_url:
-                # LAYOUT DE PRÉ-VISUALIZAÇÃO COMPACTO (Centralizado e menor no app)
-                col_esq, col_centro, col_dir = st.columns([0.8, 2, 0.8])
-                with col_centro:
-                    st.image(
-                        st.session_state.imagem_gerada_url, 
-                        caption=f"Arte Final Vértice — Proporção {config_perfil['proporcao']}", 
-                        use_container_width=True
-                    )
-                
+        if not st.session_state.imagem_processada_bytes:
+            with st.spinner("Gerando imagem de fundo e aplicando tipografia oficial..."):
                 try:
-                    img_bytes = requests.get(st.session_state.imagem_gerada_url).content
-                    st.download_button(
-                        label="📥 Baixar Arte em Alta Resolução (PNG)",
-                        data=img_bytes,
-                        file_name="vertice_arte_final.png",
-                        mime="image/png"
+                    # Prompt sem texto para a IA de imagem
+                    prompt_fundo = "A stressed corporate executive sitting at a modern glass desk, surrounded by multiple glowing monitors with messy spreadsheets. Deep dark navy blue office background, warm golden lighting accents, cinematic atmosphere, photorealistic 8k, NO TEXT, NO WORDS, NO LOGOS, NO WATERMARKS, clean background composition."
+
+                    output = replicate.run(
+                        "ideogram-ai/ideogram-v2",
+                        input={
+                            "prompt": prompt_fundo,
+                            "aspect_ratio": "3:4",
+                            "style_type": "Design",
+                            "magic_prompt_option": "Auto"
+                        }
                     )
-                except Exception:
-                    st.markdown(f"[📥 Abrir Arte em Nova Aba]({st.session_state.imagem_gerada_url})")
+                    image_url = str(output[0]) if isinstance(output, list) else str(output)
+                    raw_bytes = requests.get(image_url).content
+
+                    # Extrai a headline do rascunho
+                    headline_texto = st.session_state.ideia_escolhida
+                    if "HEADLINE CAPA:" in st.session_state.estrutura_rascunho:
+                        headline_texto = st.session_state.estrutura_rascunho.split("HEADLINE CAPA:")[1].split("\n")[0].strip()
+
+                    # Aplica a tipografia perfeita via código
+                    img_final = aplicar_tipografia_codigo(raw_bytes, headline_texto)
+                    
+                    buf = io.BytesIO()
+                    img_final.save(buf, format="PNG")
+                    st.session_state.imagem_processada_bytes = buf.getvalue()
+                    st.rerun()
+
+                except Exception as err:
+                    st.error(f"Erro no processamento da imagem: {err}")
+
+        if st.session_state.imagem_processada_bytes:
+            col_esq, col_centro, col_dir = st.columns([0.8, 2, 0.8])
+            with col_centro:
+                st.image(st.session_state.imagem_processada_bytes, caption="Arte Final Vértice (Zero Erro Tipográfico)", use_container_width=True)
+            
+            st.download_button(
+                label="📥 Baixar Arte Final (PNG Alta Resolução)",
+                data=st.session_state.imagem_processada_bytes,
+                file_name="vertice_arte_final.png",
+                mime="image/png"
+            )
 
         st.divider()
         st.subheader("📝 Rascunho & Legenda Estratégica:")
