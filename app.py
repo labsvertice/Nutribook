@@ -200,6 +200,9 @@ def gerar_estrutura_gemini(api_key: str, ideia: str, formato: str, paginas: int,
     | [frase curta 2]
     | [frase curta 3]
 
+    PROMPT VISUAL IDEOGRAM (EM INGLÊS):
+    [Crie uma descrição detalhada em inglês da cena ideal para o gerador de imagem (ex: pessoas em reunião corporativa, ambiente executivo tenso, luz ambiente azul e amarela) e inclua as frases exatas da capa em português entre aspas]
+
     📌 **LEGENDA DO POST**
     [Escreva a legenda aplicando ESTRITAMENTE as regras de linhas curtas e o encerramento correto do produto]
     """
@@ -373,28 +376,35 @@ else:
                     st.session_state.estrutura_rascunho = None
                     st.rerun()
 
-    # --- ETAPA 8: EXECUÇÃO VISUAL (REPLICATE / FLUX) ---
+    # --- ETAPA 8: EXECUÇÃO VISUAL (IDEOGRAM V2) ---
     elif st.session_state.etapa == 8:
-        st.subheader("ETAPA 8: Renderização Visual Vértice")
+        st.subheader("ETAPA 8: Renderização Visual Vértice (Ideogram v2)")
         
         if st.session_state.formato == "Reels (Apenas Roteiro)":
             st.success("O Roteiro para Reels foi concluído na etapa anterior.")
         else:
             if not st.session_state.imagem_gerada_url:
-                with st.spinner("Renderizando arte e iluminação no FLUX.1 [dev] (Aguarde de 15s a 25s)..."):
+                with st.spinner("Renderizando cena e tipografia no Ideogram v2 (Aguarde de 15s a 25s)..."):
                     try:
-                        # PROMPT VISUAL DE ALTA PRECISÃO (Sem forçar frases longas dentro do gerador de imagem)
-                        prompt_flux = """
-                        Executive social media poster design, dark navy blue background, modern sleek workstation with dark analytics dashboard on laptop screen, elegant spotlight overhead, sharp bright yellow and white bold clean layout typography, executive corporate aesthetic, minimal layout, 8k resolution, ultra detailed render.
-                        """
+                        # Extrai o prompt dinâmico gerado pelo Gemini ou monta um contextual
+                        prompt_ideogram = f"Corporate executive meeting room scene, moody dark blue cinematic lighting. A group of business professionals in a boardroom discussing around a table with analytics on screen. Bold executive typography overlay reading: \"{st.session_state.ideia_escolhida}\". Dark blue background, high contrast yellow typography accents, 8k resolution graphic design poster."
+
+                        if st.session_state.estrutura_rascunho and "PROMPT VISUAL IDEOGRAM" in st.session_state.estrutura_rascunho.upper():
+                            lines = st.session_state.estrutura_rascunho.split("\n")
+                            for idx, line in enumerate(lines):
+                                if "PROMPT VISUAL IDEOGRAM" in line.upper() and idx + 1 < len(lines):
+                                    prox = lines[idx + 1].strip()
+                                    if prox:
+                                        prompt_ideogram = prox
+                                        break
 
                         output = replicate.run(
-                            "black-forest-labs/flux-dev",
+                            "ideogram-ai/ideogram-v2",
                             input={
-                                "prompt": prompt_flux,
+                                "prompt": prompt_ideogram,
                                 "aspect_ratio": "4:5",
-                                "output_format": "png",
-                                "guidance": 3.5
+                                "style_type": "DESIGN",
+                                "magic_prompt_option": "AUTO"
                             }
                         )
 
@@ -408,7 +418,7 @@ else:
                         st.rerun()
 
                     except Exception as err:
-                        st.error(f"Erro ao processar imagem no Replicate: {err}")
+                        st.error(f"Erro ao processar imagem no Ideogram: {err}")
 
             if st.session_state.imagem_gerada_url:
                 st.image(
