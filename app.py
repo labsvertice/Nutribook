@@ -47,7 +47,7 @@ st.markdown("""
         padding: 10px 15px;
     }
 
-    /* ESTILO ESPECÍFICO PARA OS BOTÕES DE SELEÇÃO DE IDEIAS (LEITURA LIMPA E CLARA) */
+    /* ESTILO ESPECÍFICO PARA OS BOTÕES DE SELEÇÃO DE IDEIAS */
     div[data-testid="stVerticalBlock"] div.stButton > button {
         background-color: #0e2447 !important;
         color: #ffffff !important;
@@ -103,7 +103,6 @@ st.markdown("""
         font-weight: 500 !important;
     }
 
-    /* Reduz espaçamento do divisor */
     hr {
         margin-top: 0.8rem !important;
         margin-bottom: 1rem !important;
@@ -131,23 +130,31 @@ st.write("---")
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 REPLICATE_API_TOKEN = st.secrets.get("REPLICATE_API_TOKEN", "")
 
-# --- FUNÇÕES COM CACHE PARA ECONOMIZAR CRÉDITOS DO GEMINI ---
-@st.cache_data(show_spinner=False)
+# SEM CACHE: Força o Gemini a gerar 5 opções inéditas a cada execução
 def gerar_ideias_gemini(api_key: str, base_conhecimento: str) -> list:
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-3.5-flash-lite")
+    
+    # Temperatura alta força diversidade e novas abordagens
+    model = genai.GenerativeModel(
+        "gemini-3.5-flash-lite",
+        generation_config={"temperature": 0.95}
+    )
+    
     prompt = f"""
-    Você é o estrategista de conteúdo do especialista Jean Victor.
-    Base de Conhecimento do Produto:
-    {base_conhecimento}
+    Estrategista Jean Victor.
+    Base: {base_conhecimento}
+    Seed de variação temporária: {time.time()}
 
-    Gere exatamente 5 ideias curtas, provocativas e de alto impacto de temas para o post.
-    REGRA CRÍTICA: NÃO inclua bordão, slogan, CTA ou frases de encerramento no final das ideias. Apenas o tema/ideia central de forma direta.
-    Responda estritamente em formato de lista numerada simples (1. Ideia, 2. Ideia...).
+    Gere 5 ideias ÚNICAS, DIFERENTES e VARIADAS de temas para o post.
+    Surpreenda na escolha dos ângulos estratégicos.
+    SEM bordão, slogan, CTA ou encerramento no final.
+    Responda em formato numerado:
+    1. Ideia 1
+    2. Ideia 2
     """
     res = model.generate_content(prompt)
     linhas = [line.strip() for line in res.text.split("\n") if line.strip() and line.strip()[0].isdigit()]
-    return linhas if len(linhas) > 0 else [res.text]
+    return linhas if linhas else [res.text]
 
 @st.cache_data(show_spinner=False)
 def gerar_estrutura_gemini(api_key: str, ideia: str, formato: str, paginas: int, base_conhecimento: str) -> str:
@@ -271,7 +278,6 @@ else:
         
         if st.session_state.opcao_ideia == "2️⃣ Quero ideias estratégicas":
             
-            # Se a lista ainda estiver vazia, carrega via API uma única vez
             if not st.session_state.ideias_lista:
                 if st.button("💡 Gerar 5 Ideias Estratégicas"):
                     with st.spinner("Analisando base de conhecimento..."):
@@ -281,7 +287,6 @@ else:
                         except Exception as err:
                             st.error(f"Erro na conexão com o Gemini: {err}")
 
-            # Exibe as ideias diretamente sem recarregar a API
             if st.session_state.ideias_lista:
                 st.write("---")
                 st.write("**Clique na ideia escolhida para avançar:**")
@@ -292,6 +297,15 @@ else:
                         st.session_state.imagem_gerada_url = None
                         st.session_state.etapa = 5
                         st.rerun()
+                
+                st.write("")
+                if st.button("🔄 Gerar Outras 5 Ideias"):
+                    with st.spinner("Buscando novas abordagens estratégicas..."):
+                        try:
+                            st.session_state.ideias_lista = gerar_ideias_gemini(GEMINI_API_KEY, base_conhecimento)
+                            st.rerun()
+                        except Exception as err:
+                            st.error(f"Erro na conexão com o Gemini: {err}")
 
         else:
             st.session_state.ideia_escolhida = st.text_input("Digite a sua ideia/tema para estruturação:")
@@ -341,7 +355,7 @@ else:
                     st.session_state.estrutura_rascunho = None
                     st.rerun()
 
-# --- ETAPA 8: EXECUÇÃO VISUAL (REPLICATE / FLUX) ---
+    # --- ETAPA 8: EXECUÇÃO VISUAL (REPLICATE / FLUX) ---
     elif st.session_state.etapa == 8:
         st.subheader("ETAPA 8: Renderização Visual Vértice")
         
@@ -349,13 +363,26 @@ else:
             st.success("O Roteiro para Reels foi concluído na etapa anterior.")
         else:
             if not st.session_state.imagem_gerada_url:
-                with st.spinner("Renderizando arte no FLUX.1 [dev] no padrão Vértice (Aguarde de 15s a 25s)..."):
+                with st.spinner("Renderizando arte e tipografia no FLUX.1 [dev] (Aguarde de 15s a 25s)..."):
                     try:
-                        # Trava de prompt visual: fotografia corporativa de alto padrão em inglês
+                        # Extrai a headline gerada pelo Gemini para renderizar na imagem
+                        texto_headline = st.session_state.ideia_escolhida
+                        if st.session_state.estrutura_rascunho and "HEADLINE" in st.session_state.estrutura_rascunho.upper():
+                            lines = st.session_state.estrutura_rascunho.split("\n")
+                            for idx, line in enumerate(lines):
+                                if "HEADLINE" in line.upper() and idx + 1 < len(lines):
+                                    prox = lines[idx + 1].strip()
+                                    if prox:
+                                        texto_headline = prox.replace('"', '')
+                                        break
+
+                        # Prompt refinado instruindo o FLUX a renderizar o texto corporativo em destaque
                         prompt_flux = f"""
-                        High-end commercial corporate photography. Minimalist executive desk with a glowing sleek laptop display showing modern clean data charts and Business Intelligence dashboards. Deep blue, dark charcoal, and subtle gold accent lighting. Professional studio setting, cinematic atmosphere, hyper-realistic, 8k resolution, sharp focus. Clean, sophisticated, corporate tech aesthetic.
-                        Concept: {st.session_state.ideia_escolhida}.
-                        NO text on image, NO weird masks, NO faces, NO hooded figures, NO surrealism.
+                        High-end professional social media graphic design banner. 
+                        Minimalist executive dark background: deep blue and charcoal dark mood lighting, sleek modern laptop displaying subtle data charts in background.
+                        In the center, large bold white typography overlay text that reads exactly: "{texto_headline}".
+                        The text is highly legible, beautifully styled, perfectly centered, crisp corporate typography.
+                        8k resolution, professional presentation aesthetic, elegant contrast.
                         """
 
                         output = replicate.run(
@@ -364,11 +391,10 @@ else:
                                 "prompt": prompt_flux,
                                 "aspect_ratio": "4:5",
                                 "output_format": "png",
-                                "guidance": 3.0
+                                "guidance": 3.5
                             }
                         )
 
-                        # Extrai a URL em texto puro do objeto FileOutput do Replicate
                         if isinstance(output, list) and len(output) > 0:
                             item = output[0]
                             image_url = str(item.url) if hasattr(item, "url") else str(item)
