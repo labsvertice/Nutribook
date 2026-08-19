@@ -2,6 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import replicate
 import importlib
+import time
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Plataforma Vértice | Jean Victor", layout="centered")
@@ -32,6 +33,7 @@ st.markdown("""
         padding-top: 1.5rem !important;
     }
     
+    /* ESTILO DOS BOTÕES PADRÃO */
     .stButton>button { 
         background-color: #f4c70f; 
         color: #000000; 
@@ -39,8 +41,35 @@ st.markdown("""
         font-weight: 700; 
         border-radius: 6px; 
         width: 100%; 
-        height: 48px; 
+        min-height: 48px;
+        height: auto;
         border: none; 
+        padding: 10px 15px;
+    }
+
+    /* ESTILO ESPECÍFICO PARA OS BOTÕES DE SELEÇÃO DE IDEIAS (LEITURA LIMPA E CLARA) */
+    div[data-testid="stVerticalBlock"] div.stButton > button {
+        background-color: #0e2447 !important;
+        color: #ffffff !important;
+        border: 1px solid #f4c70f !important;
+        font-weight: 600 !important;
+        text-align: left !important;
+        line-height: 1.4 !important;
+        transition: all 0.2s ease-in-out;
+    }
+
+    div[data-testid="stVerticalBlock"] div.stButton > button:hover {
+        background-color: #f4c70f !important;
+        color: #000000 !important;
+        border-color: #f4c70f !important;
+    }
+
+    div[data-testid="stVerticalBlock"] div.stButton > button:focus, 
+    div[data-testid="stVerticalBlock"] div.stButton > button:active {
+        background-color: #1a365d !important;
+        color: #ffffff !important;
+        border-color: #f4c70f !important;
+        box-shadow: 0 0 8px rgba(244, 199, 15, 0.4) !important;
     }
     
     .stSelectbox, .stTextInput, .stRadio { 
@@ -139,6 +168,8 @@ if "ideias_lista" not in st.session_state:
     st.session_state.ideias_lista = []
 if "estrutura_rascunho" not in st.session_state:
     st.session_state.estrutura_rascunho = None
+if "imagem_gerada_url" not in st.session_state:
+    st.session_state.imagem_gerada_url = None
 
 # --- PAINEL SIDEBAR ---
 with st.sidebar:
@@ -198,11 +229,12 @@ else:
             if st.button("💡 Gerar 5 Ideias Estratégicas"):
                 with st.spinner("Analisando base de conhecimento do produto..."):
                     prompt_ideias = f"""
-                    Você é o estrategista do Vértice (Jean Victor).
+                    Você é o estrategista de conteúdo do especialista Jean Victor.
                     Base de Conhecimento do Produto:
                     {base_conhecimento}
 
-                    Gere exatamente 5 ideias curtas, provocativas e de alto impacto respeitando 100% as restrições obrigatórias.
+                    Gere exatamente 5 ideias curtas, provocativas e de alto impacto de temas para o post.
+                    REGRA CRÍTICA: NÃO inclua bordão, slogan, CTA ou frases de encerramento no final das ideias. Apenas o tema/ideia central de forma direta.
                     Responda estritamente em formato de lista numerada simples (1. Ideia, 2. Ideia...).
                     """
                     try:
@@ -218,6 +250,8 @@ else:
                 for i, idx_ideia in enumerate(st.session_state.ideias_lista):
                     if st.button(f"{idx_ideia}", key=f"btn_ideia_{i}"):
                         st.session_state.ideia_escolhida = idx_ideia
+                        st.session_state.estrutura_rascunho = None # Reseta o rascunho anterior
+                        st.session_state.imagem_gerada_url = None
                         st.session_state.etapa = 5
                         st.rerun()
 
@@ -225,6 +259,8 @@ else:
             st.session_state.ideia_escolhida = st.text_input("Digite a sua ideia/tema para estruturação:")
             if st.session_state.ideia_escolhida:
                 if st.button("Avançar para Estruturação Estratégica"):
+                    st.session_state.estrutura_rascunho = None
+                    st.session_state.imagem_gerada_url = None
                     st.session_state.etapa = 5
                     st.rerun()
 
@@ -237,6 +273,14 @@ else:
 
         if not st.session_state.estrutura_rascunho:
             with st.spinner("Construindo narrativa de alta retenção..."):
+                
+                # Regra do Bordão apenas para Reels
+                regra_bordao = ""
+                if st.session_state.formato == "Reels (Apenas Roteiro)":
+                    regra_bordao = "- OBRIGATÓRIO: Forneça a LEGENDA/ROTEIRO completa finalizando rigorosamente com o JARGÃO/CTA OBRIGATÓRIO indicado na base de conhecimento."
+                else:
+                    regra_bordao = "- NÃO utilize bordão fixo ao final da legenda/post a menos que seja um roteiro de Reels."
+
                 prompt_estrutura = f"""
                 Você é o motor da Plataforma Vértice para o especialista Jean Victor.
                 Tema: '{st.session_state.ideia_escolhida}'
@@ -251,30 +295,31 @@ else:
                 - Predomínio de caixa baixa (70% caixa baixa / 30% caixa alta em termos estratégicos).
                 - Tensão, provocação e corte de 50% de textos desnecessários.
                 - OBRIGATÓRIO: Forneça a HEADLINE exata da capa/arte.
-                - OBRIGATÓRIO: Forneça a LEGENDA completa finalizando rigorosamente com o JARGÃO/CTA OBRIGATÓRIO indicado na base de conhecimento.
+                {regra_bordao}
                 """
                 try:
                     res = model_gemini.generate_content(prompt_estrutura)
                     st.session_state.estrutura_rascunho = res.text
+                    st.rerun()
                 except Exception as err:
                     st.error(f"Erro na conexão com o Gemini (Etapa 5): {err}")
 
         if st.session_state.estrutura_rascunho:
             st.markdown(st.session_state.estrutura_rascunho)
 
-        st.divider()
-        st.subheader("ETAPA 7: Validação de Segurança")
-        st.write("Aprova essa estrutura e direção visual? Posso gerar a imagem da arte?")
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("✅ SIM, Aprovo! Gerar Imagem"):
-                st.session_state.etapa = 8
-                st.rerun()
-        with col2:
-            if st.button("❌ Refazer Estrutura"):
-                st.session_state.estrutura_rascunho = None
-                st.rerun()
+            st.divider()
+            st.subheader("ETAPA 7: Validação de Segurança")
+            st.write("Aprova essa estrutura e direção visual? Posso gerar a imagem da arte?")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("✅ SIM, Aprovo! Gerar Imagem"):
+                    st.session_state.etapa = 8
+                    st.rerun()
+            with col2:
+                if st.button("❌ Refazer Estrutura"):
+                    st.session_state.estrutura_rascunho = None
+                    st.rerun()
 
     # --- ETAPA 8: EXECUÇÃO VISUAL ---
     elif st.session_state.etapa == 8:
@@ -283,31 +328,37 @@ else:
         if st.session_state.formato == "Reels (Apenas Roteiro)":
             st.success("O Roteiro para Reels foi concluído na etapa anterior.")
         else:
-            with st.spinner("Renderizando arte no FLUX.1 [dev] no padrão Vértice..."):
-                try:
-                    prompt_flux = f"""
-                    {config_perfil['prompt_visual_flux']}
-                    Topic/Headline: '{st.session_state.ideia_escolhida}'.
-                    """
+            if not st.session_state.imagem_gerada_url:
+                with st.spinner("Renderizando arte no FLUX.1 [dev] no padrão Vértice (Aguarde até 45s)..."):
+                    try:
+                        prompt_flux = f"""
+                        {config_perfil['prompt_visual_flux']}
+                        Topic/Headline: '{st.session_state.ideia_escolhida}'.
+                        """
 
-                    rep_client = replicate.Client(api_token=REPLICATE_API_TOKEN)
-                    
-                    output = rep_client.run(
-                        "black-forest-labs/flux-dev",
-                        input={
-                            "prompt": prompt_flux,
-                            "aspect_ratio": "4:5",
-                            "output_format": "png",
-                            "guidance": 3.5
-                        }
-                    )
-                    
-                    image_url = str(output[0]) if isinstance(output, list) else str(output)
-                    st.image(image_url, caption=f"Arte Final Vértice — Proporção {config_perfil['proporcao']}", use_container_width=True)
-                    st.markdown(f"[📥 Baixar Arte em Alta Resolução (PNG)]({image_url})")
+                        rep_client = replicate.Client(api_token=REPLICATE_API_TOKEN, timeout=120)
+                        
+                        output = rep_client.run(
+                            "black-forest-labs/flux-dev",
+                            input={
+                                "prompt": prompt_flux,
+                                "aspect_ratio": "4:5",
+                                "output_format": "png",
+                                "guidance": 3.5
+                            }
+                        )
+                        
+                        image_url = str(output[0]) if isinstance(output, list) else str(output)
+                        st.session_state.imagem_gerada_url = image_url
 
-                except Exception as err:
-                    st.error(f"Erro ao gerar a imagem no Replicate: {err}")
+                    except Exception as err:
+                        st.error(f"Erro ao gerar a imagem no Replicate: {err}")
+                        if st.button("🔄 Tentar Gerar Novamente"):
+                            st.rerun()
+
+            if st.session_state.imagem_gerada_url:
+                st.image(st.session_state.imagem_gerada_url, caption=f"Arte Final Vértice — Proporção {config_perfil['proporcao']}", use_container_width=True)
+                st.markdown(f"[📥 Baixar Arte em Alta Resolução (PNG)]({st.session_state.imagem_gerada_url})")
 
         st.divider()
         st.subheader("📝 Rascunho & Legenda Estratégica:")
