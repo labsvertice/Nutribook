@@ -341,7 +341,7 @@ else:
                     st.session_state.estrutura_rascunho = None
                     st.rerun()
 
-   # --- ETAPA 8: EXECUÇÃO VISUAL (REPLICATE / FLUX) ---
+# --- ETAPA 8: EXECUÇÃO VISUAL (REPLICATE / FLUX) ---
     elif st.session_state.etapa == 8:
         st.subheader("ETAPA 8: Renderização Visual Vértice")
         
@@ -356,7 +356,6 @@ else:
                         Topic/Headline: '{st.session_state.ideia_escolhida}'.
                         """
 
-                        # Chamada direta pelo alias oficial do modelo no Replicate
                         output = replicate.run(
                             "black-forest-labs/flux-dev",
                             input={
@@ -367,7 +366,13 @@ else:
                             }
                         )
 
-                        image_url = output[0] if isinstance(output, list) else str(output)
+                        # Extrai a URL em texto puro do objeto FileOutput do Replicate
+                        if isinstance(output, list) and len(output) > 0:
+                            item = output[0]
+                            image_url = str(item.url) if hasattr(item, "url") else str(item)
+                        else:
+                            image_url = str(output.url) if hasattr(output, "url") else str(output)
+
                         st.session_state.imagem_gerada_url = image_url
                         st.rerun()
 
@@ -375,7 +380,11 @@ else:
                         st.error(f"Erro ao processar imagem no Replicate: {err}")
 
             if st.session_state.imagem_gerada_url:
-                st.image(st.session_state.imagem_gerada_url, caption=f"Arte Final Vértice — Proporção {config_perfil['proporcao']}", use_container_width=True)
+                st.image(
+                    st.session_state.imagem_gerada_url, 
+                    caption=f"Arte Final Vértice — Proporção {config_perfil['proporcao']}", 
+                    use_container_width=True
+                )
                 st.markdown(f"[📥 Baixar Arte em Alta Resolução (PNG)]({st.session_state.imagem_gerada_url})")
 
         st.divider()
