@@ -159,7 +159,7 @@ def gerar_estrutura_gemini(api_key: str, ideia: str, formato: str, paginas: int,
     model = genai.GenerativeModel("gemini-3.5-flash-lite")
 
     prompt = f"""
-    Você é o estrategista de copy do Jean Victor (Plataforma Vértice).
+    Você é o estrategista de copy da Plataforma Vértice para Jean Victor.
     Tema: '{ideia}'
     Formato: {formato} ({paginas} páginas se carrossel)
     
@@ -167,27 +167,25 @@ def gerar_estrutura_gemini(api_key: str, ideia: str, formato: str, paginas: int,
     {base_conhecimento}
     
     ---
-    PADRÃO DE ESCRITA STRICT (ESTILO JEAN VICTOR):
+    ESTRUTURA OBRIGATÓRIA DA RESPOSTA:
 
-    1. DESIGN DA ARTE (DESIGN & TYPOGRAPHY):
-       - HEADLINE CAPA: Dominante, pesada, caixa baixa predominante com palavra-chave em destaque/amarelo.
-       - SUBTEXTOS DE APOIO: Use rigorosamente o formato de marcadores com barra vertical `|` para criar frases curtas de contraste.
-         Exemplo:
-         | mais indicadores não significam mais controle.
-         | significam mais confusão.
-
-    2. LEGENDA DO POST (CAPTION):
-       - PROIBIDO PARÁGRAFOS LONGOS OU TEXTO EM BLOCO.
-       - Linhas curtas (máximo 4 a 7 palavras por linha).
-       - Quebras de linha constantes e espaçamento amplo entre blocos.
-       - Use marcadores visuais de erro/comparação (exemplo: `❌ mais dados`, `❌ mais relatórios`).
-       - Tom provocativo, direto, cortante e técnico.
-       - Termine estritamente com o jargão/CTA obrigatório do produto em questão.
-    ---
-
-    Gere a estrutura completa separada em:
     📌 **TEXTO DA ARTE / CARROSSEL**
+    (Formato: {formato})
+
+    HEADLINE CAPA:
+    [Escreva a headline principal, impactante, em caixa baixa com palavras em destaque]
+
+    SUBTEXTOS DE APOIO:
+    | [subtexto 1 de impacto direto]
+    | [subtexto 2 de contraste visual]
+    | [subtexto 3 de fechamento da capa]
+
     📌 **LEGENDA DO POST**
+    - MANTENHA A LEGENDA EXTREMAMENTE ENXUTA. EVITE TRECHOS LONGOS OU PARÁGRAFOS DENSOS.
+    - Use frases curtas de 4 a 6 palavras por linha.
+    - Use marcadores visuais (`❌` para erros, `|` para reforço).
+    - Finalize estritamente com o jargão/CTA do produto fornecido na base de conhecimento.
+    ---
     """
     res = model.generate_content(prompt)
     return res.text
@@ -272,6 +270,7 @@ else:
         if st.button("Avançar para Ideação"):
             st.session_state.opcao_ideia = op
             st.session_state.num_paginas = paginas
+            st.session_state.ideias_lista = []  # Reseta para gerar novas ao carregar
             st.session_state.etapa = 4
             st.rerun()
 
@@ -283,18 +282,17 @@ else:
         st.subheader(f"ETAPA 4: Definição do Conteúdo — {st.session_state.produto}")
         
         if st.session_state.opcao_ideia == "2️⃣ Quero ideias estratégicas":
+            # GERAÇÃO AUTOMÁTICA DAS 5 IDEIAS (SEM BOTÃO INTERMEDIÁRIO)
             if not st.session_state.ideias_lista:
-                if st.button("💡 Gerar 5 Ideias Estratégicas"):
-                    with st.spinner("Analisando base de conhecimento..."):
-                        try:
-                            st.session_state.ideias_lista = gerar_ideias_gemini(GEMINI_API_KEY, base_conhecimento)
-                            st.rerun()
-                        except Exception as err:
-                            st.error(f"Erro na conexão com o Gemini: {err}")
+                with st.spinner("Analisando base de conhecimento e gerando 5 ideias estratégicas..."):
+                    try:
+                        st.session_state.ideias_lista = gerar_ideias_gemini(GEMINI_API_KEY, base_conhecimento)
+                        st.rerun()
+                    except Exception as err:
+                        st.error(f"Erro na conexão com o Gemini: {err}")
 
             if st.session_state.ideias_lista:
-                st.write("---")
-                st.write("**Clique na ideia escolhida para avançar:**")
+                st.write("**Clique em uma das opções abaixo para selecionar:**")
                 for i, idx_ideia in enumerate(st.session_state.ideias_lista):
                     if st.button(f"{idx_ideia}", key=f"btn_ideia_{i}"):
                         st.session_state.ideia_escolhida = idx_ideia
@@ -381,11 +379,10 @@ else:
                                         break
 
                         prompt_flux = f"""
-                        High-end professional executive graphic banner for social media. 
-                        Dark deep blue and charcoal background with strong blue rim lighting and bright yellow light accent.
-                        Modern dark moody desk with a laptop displaying a magnifying glass over dark financial graphs.
-                        In the center, large heavy bold white and yellow typography overlay that reads exactly: "{texto_headline}".
-                        Clean graphic design, ultra legible typography, bold contrast, executive aesthetic, 8k resolution.
+                        High-end professional executive social media poster design. 
+                        Dark deep navy blue studio lighting with strong bright blue side rim light glow and a sharp spotlight on a sleek laptop displaying dark financial charts.
+                        Centered bold high-contrast white and yellow heavy typography overlay text reading: "{texto_headline}".
+                        Clean composition, executive corporate aesthetic, premium typography contrast, 8k resolution render.
                         """
 
                         output = replicate.run(
