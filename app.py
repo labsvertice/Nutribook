@@ -9,7 +9,7 @@ st.set_page_config(page_title="Plataforma Vértice | Jean Victor", layout="cente
 # CSS Customizado com Fonte Montserrat e Paleta Vértice
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap');
 
     html, body, [class*="css"], .stApp {
         font-family: 'Montserrat', sans-serif !important;
@@ -42,32 +42,46 @@ st.markdown("""
         color: #ffffff !important; 
     }
 
-    .titulo-vertice {
-        color: #f4c70f;
-        font-weight: 800;
-        font-size: 2.3rem;
-        margin-bottom: 0px;
-        line-height: 1.2;
+    /* Sobrescrita para forçar o tamanho do cabeçalho principal */
+    .header-container {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        margin-bottom: 25px;
+    }
+
+    h1.titulo-vertice {
+        color: #f4c70f !important;
+        font-family: 'Montserrat', sans-serif !important;
+        font-weight: 900 !important;
+        font-size: 3.2rem !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        line-height: 1.1 !important;
+        letter-spacing: -1px !important;
     }
     
-    .subtitulo-vertice {
-        color: #8892b0;
-        font-size: 0.95rem;
-        margin-top: 4px;
+    p.subtitulo-vertice {
+        color: #8892b0 !important;
+        font-family: 'Montserrat', sans-serif !important;
+        font-size: 1.1rem !important;
+        margin-top: 6px !important;
+        font-weight: 500 !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- LOGO & TÍTULO ---
-col_logo, col_titulo = st.columns([1, 4])
+# --- LOGO & TÍTULO (ALINHAMENTO EM BLOCO ÚNICO) ---
+col_logo, col_titulo = st.columns([1, 3.5], vertical_alignment="center")
+
 with col_logo:
     try:
-        st.image("logo.png", width=85)
+        st.image("logo.png", width=130)
     except Exception:
         pass
 
 with col_titulo:
-    st.markdown('<p class="titulo-vertice">Plataforma Vértice</p>', unsafe_allow_html=True)
+    st.markdown('<h1 class="titulo-vertice">Plataforma Vértice</h1>', unsafe_allow_html=True)
     st.markdown('<p class="subtitulo-vertice">Motor Estratégico de Conteúdo Premium — Jean Victor</p>', unsafe_allow_html=True)
 
 st.write("---")
