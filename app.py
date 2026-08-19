@@ -135,7 +135,7 @@ REPLICATE_API_TOKEN = st.secrets.get("REPLICATE_API_TOKEN", "")
 @st.cache_data(show_spinner=False)
 def gerar_ideias_gemini(api_key: str, base_conhecimento: str) -> list:
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-flash-latest")
+    model = genai.GenerativeModel("gemini-2.5-flash-lite")
     prompt = f"""
     Você é o estrategista de conteúdo do especialista Jean Victor.
     Base de Conhecimento do Produto:
@@ -152,7 +152,7 @@ def gerar_ideias_gemini(api_key: str, base_conhecimento: str) -> list:
 @st.cache_data(show_spinner=False)
 def gerar_estrutura_gemini(api_key: str, ideia: str, formato: str, paginas: int, base_conhecimento: str) -> str:
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-flash-latest")
+    model = genai.GenerativeModel("gemini-2.5-flash-lite")
     
     regra_bordao = ""
     if formato == "Reels (Apenas Roteiro)":
@@ -270,13 +270,18 @@ else:
         st.subheader(f"ETAPA 4: Definição do Conteúdo — {st.session_state.produto}")
         
         if st.session_state.opcao_ideia == "2️⃣ Quero ideias estratégicas":
-            if st.button("💡 Gerar 5 Ideias Estratégicas") or len(st.session_state.ideias_lista) > 0:
-                with st.spinner("Analisando base de conhecimento do produto..."):
-                    try:
-                        st.session_state.ideias_lista = gerar_ideias_gemini(GEMINI_API_KEY, base_conhecimento)
-                    except Exception as err:
-                        st.error(f"Erro na conexão com o Gemini: {err}")
+            
+            # Se a lista ainda estiver vazia, carrega via API uma única vez
+            if not st.session_state.ideias_lista:
+                if st.button("💡 Gerar 5 Ideias Estratégicas"):
+                    with st.spinner("Analisando base de conhecimento..."):
+                        try:
+                            st.session_state.ideias_lista = gerar_ideias_gemini(GEMINI_API_KEY, base_conhecimento)
+                            st.rerun()
+                        except Exception as err:
+                            st.error(f"Erro na conexão com o Gemini: {err}")
 
+            # Exibe as ideias diretamente sem recarregar a API
             if st.session_state.ideias_lista:
                 st.write("---")
                 st.write("**Clique na ideia escolhida para avançar:**")
