@@ -402,9 +402,9 @@ else:
                             "ideogram-ai/ideogram-v2",
                             input={
                                 "prompt": prompt_ideogram,
-                                "aspect_ratio": "4:5",
-                                "style_type": "DESIGN",
-                                "magic_prompt_option": "AUTO"
+                                "aspect_ratio": "3:4",
+                                "style_type": "Design",
+                                "magic_prompt_option": "Auto"
                             }
                         )
 
