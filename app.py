@@ -201,7 +201,7 @@ def gerar_estrutura_gemini(api_key: str, ideia: str, formato: str, paginas: int,
     | [frase curta 3]
 
     PROMPT VISUAL IDEOGRAM (EM INGLÊS):
-    [Crie uma descrição detalhada em inglês da cena ideal para o gerador de imagem (ex: pessoas em reunião corporativa, ambiente executivo tenso, luz ambiente azul e amarela) e inclua as frases exatas da capa em português entre aspas]
+    [Crie uma descrição detalhada em inglês da cena ideal em ambiente corporativo azul marinho e iluminação dourada e inclua a frase exata entre aspas. Adicione estritamente no final: 'no watermarks, no logos, no stamps in corner']
 
     📌 **LEGENDA DO POST**
     [Escreva a legenda aplicando ESTRITAMENTE as regras de linhas curtas e o encerramento correto do produto]
@@ -386,8 +386,7 @@ else:
             if not st.session_state.imagem_gerada_url:
                 with st.spinner("Renderizando cena e tipografia no Ideogram v2 (Aguarde de 15s a 25s)..."):
                     try:
-                        # Extrai o prompt dinâmico gerado pelo Gemini ou monta um contextual
-                        prompt_ideogram = f"Corporate executive meeting room scene, moody dark blue cinematic lighting. A group of business professionals in a boardroom discussing around a table with analytics on screen. Bold executive typography overlay reading: \"{st.session_state.ideia_escolhida}\". Dark blue background, high contrast yellow typography accents, 8k resolution graphic design poster."
+                        prompt_ideogram = f"Cinematic executive boardroom scene, deep dark navy blue room background, professional corporate lighting with vibrant golden yellow highlights. A stressed manager at a modern glass table looking uncertain. Overlay text reading strictly in bold clean letters: \"{st.session_state.ideia_escolhida}\". No watermarks, no logos, no stamps in corners, clean edges, 8k resolution graphic design poster."
 
                         if st.session_state.estrutura_rascunho and "PROMPT VISUAL IDEOGRAM" in st.session_state.estrutura_rascunho.upper():
                             lines = st.session_state.estrutura_rascunho.split("\n")
@@ -395,7 +394,7 @@ else:
                                 if "PROMPT VISUAL IDEOGRAM" in line.upper() and idx + 1 < len(lines):
                                     prox = lines[idx + 1].strip()
                                     if prox:
-                                        prompt_ideogram = prox
+                                        prompt_ideogram = prox + ", no watermarks, no logos, no stamps, clean composition"
                                         break
 
                         output = replicate.run(
@@ -421,11 +420,14 @@ else:
                         st.error(f"Erro ao processar imagem no Ideogram: {err}")
 
             if st.session_state.imagem_gerada_url:
-                st.image(
-                    st.session_state.imagem_gerada_url, 
-                    caption=f"Arte Final Vértice — Proporção {config_perfil['proporcao']}", 
-                    use_container_width=True
-                )
+                # LAYOUT DE PRÉ-VISUALIZAÇÃO COMPACTO (Centralizado e menor no app)
+                col_esq, col_centro, col_dir = st.columns([0.8, 2, 0.8])
+                with col_centro:
+                    st.image(
+                        st.session_state.imagem_gerada_url, 
+                        caption=f"Arte Final Vértice — Proporção {config_perfil['proporcao']}", 
+                        use_container_width=True
+                    )
                 
                 try:
                     img_bytes = requests.get(st.session_state.imagem_gerada_url).content
