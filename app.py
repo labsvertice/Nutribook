@@ -16,9 +16,20 @@ st.markdown("""
         background-color: #020b18;
         color: #ffffff;
     }
-    
+
+    /* REDUZ O PADDING SUPERIOR PADRÃO DO STREAMLIT */
+    .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 2rem !important;
+        max-width: 900px;
+    }
+
     [data-testid="stSidebar"] { 
         background-color: #0a192f; 
+    }
+    
+    [data-testid="stSidebar"] > div:first-child {
+        padding-top: 1.5rem !important;
     }
     
     .stButton>button { 
@@ -42,14 +53,7 @@ st.markdown("""
         color: #ffffff !important; 
     }
 
-    /* Sobrescrita para forçar o tamanho do cabeçalho principal */
-    .header-container {
-        display: flex;
-        align-items: center;
-        gap: 20px;
-        margin-bottom: 25px;
-    }
-
+    /* Cabeçalho Principal */
     h1.titulo-vertice {
         color: #f4c70f !important;
         font-family: 'Montserrat', sans-serif !important;
@@ -57,7 +61,7 @@ st.markdown("""
         font-size: 3.2rem !important;
         margin: 0 !important;
         padding: 0 !important;
-        line-height: 1.1 !important;
+        line-height: 1.0 !important;
         letter-spacing: -1px !important;
     }
     
@@ -65,18 +69,26 @@ st.markdown("""
         color: #8892b0 !important;
         font-family: 'Montserrat', sans-serif !important;
         font-size: 1.1rem !important;
-        margin-top: 6px !important;
+        margin-top: 4px !important;
+        margin-bottom: 0px !important;
         font-weight: 500 !important;
+    }
+
+    /* Reduz espaçamento do divisor */
+    hr {
+        margin-top: 0.8rem !important;
+        margin-bottom: 1rem !important;
+        border-color: #1e2d4a !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
-# --- LOGO & TÍTULO (ALINHAMENTO EM BLOCO ÚNICO) ---
+# --- LOGO & TÍTULO (ALINHAMENTO COMPACTO) ---
 col_logo, col_titulo = st.columns([1, 3.5], vertical_alignment="center")
 
 with col_logo:
     try:
-        st.image("logo.png", width=130)
+        st.image("logo.png", width=125)
     except Exception:
         pass
 
