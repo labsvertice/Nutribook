@@ -2,6 +2,7 @@ import streamlit as st
 import google.generativeai as genai
 import replicate
 import importlib
+import requests
 import time
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
@@ -18,7 +19,6 @@ st.markdown("""
         color: #ffffff;
     }
 
-    /* REDUZ O PADDING SUPERIOR PADRÃO DO STREAMLIT */
     .block-container {
         padding-top: 1.5rem !important;
         padding-bottom: 2rem !important;
@@ -34,17 +34,17 @@ st.markdown("""
     }
     
     /* ESTILO DOS BOTÕES PADRÃO */
-    .stButton>button { 
-        background-color: #f4c70f; 
-        color: #000000; 
+    .stButton>button, .stDownloadButton>button { 
+        background-color: #f4c70f !important; 
+        color: #000000 !important; 
         font-family: 'Montserrat', sans-serif !important;
-        font-weight: 700; 
-        border-radius: 6px; 
-        width: 100%; 
-        min-height: 48px;
-        height: auto;
-        border: none; 
-        padding: 10px 15px;
+        font-weight: 700 !important; 
+        border-radius: 6px !important; 
+        width: 100% !important; 
+        min-height: 48px !important;
+        height: auto !important;
+        border: none !important; 
+        padding: 10px 15px !important;
     }
 
     /* ESTILO ESPECÍFICO PARA OS BOTÕES DE SELEÇÃO DE IDEIAS */
@@ -111,7 +111,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- LOGO & TÍTULO (ALINHAMENTO COMPACTO) ---
+# --- LOGO & TÍTULO ---
 col_logo, col_titulo = st.columns([1, 3.5], vertical_alignment="center")
 
 with col_logo:
@@ -130,11 +130,8 @@ st.write("---")
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 REPLICATE_API_TOKEN = st.secrets.get("REPLICATE_API_TOKEN", "")
 
-# SEM CACHE: Força o Gemini a gerar 5 opções inéditas a cada execução
 def gerar_ideias_gemini(api_key: str, base_conhecimento: str) -> list:
     genai.configure(api_key=api_key)
-    
-    # Temperatura alta força diversidade e novas abordagens
     model = genai.GenerativeModel(
         "gemini-3.5-flash-lite",
         generation_config={"temperature": 0.95}
@@ -160,28 +157,37 @@ def gerar_ideias_gemini(api_key: str, base_conhecimento: str) -> list:
 def gerar_estrutura_gemini(api_key: str, ideia: str, formato: str, paginas: int, base_conhecimento: str) -> str:
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel("gemini-3.5-flash-lite")
-    
-    regra_bordao = ""
-    if formato == "Reels (Apenas Roteiro)":
-        regra_bordao = "- OBRIGATÓRIO: Forneça a LEGENDA/ROTEIRO completa finalizando rigorosamente com o JARGÃO/CTA OBRIGATÓRIO indicado na base de conhecimento."
-    else:
-        regra_bordao = "- NÃO utilize bordão fixo ao final da legenda/post a menos que seja um roteiro de Reels."
 
     prompt = f"""
-    Você é o motor da Plataforma Vértice para o especialista Jean Victor.
+    Você é o estrategista de copy do Jean Victor (Plataforma Vértice).
     Tema: '{ideia}'
     Formato: {formato} ({paginas} páginas se carrossel)
     
-    BASE DE CONHECIMENTO E REGRAS DO PRODUTO:
+    BASE DE CONHECIMENTO DO PRODUTO:
     {base_conhecimento}
     
-    Regras de Copy:
-    - Identifique a Categoria e Objetivo (Atrair, Ensinar ou Fortalecer autoridade).
-    - Headline dominante com máximo 12 a 18 palavras NO TOTAL da arte.
-    - Predomínio de caixa baixa (70% caixa baixa / 30% caixa alta em termos estratégicos).
-    - Tensão, provocação e corte de 50% de textos desnecessários.
-    - OBRIGATÓRIO: Forneça a HEADLINE exata da capa/arte.
-    {regra_bordao}
+    ---
+    PADRÃO DE ESCRITA STRICT (ESTILO JEAN VICTOR):
+
+    1. DESIGN DA ARTE (DESIGN & TYPOGRAPHY):
+       - HEADLINE CAPA: Dominante, pesada, caixa baixa predominante com palavra-chave em destaque/amarelo.
+       - SUBTEXTOS DE APOIO: Use rigorosamente o formato de marcadores com barra vertical `|` para criar frases curtas de contraste.
+         Exemplo:
+         | mais indicadores não significam mais controle.
+         | significam mais confusão.
+
+    2. LEGENDA DO POST (CAPTION):
+       - PROIBIDO PARÁGRAFOS LONGOS OU TEXTO EM BLOCO.
+       - Linhas curtas (máximo 4 a 7 palavras por linha).
+       - Quebras de linha constantes e espaçamento amplo entre blocos.
+       - Use marcadores visuais de erro/comparação (exemplo: `❌ mais dados`, `❌ mais relatórios`).
+       - Tom provocativo, direto, cortante e técnico.
+       - Termine estritamente com o jargão/CTA obrigatório do produto em questão.
+    ---
+
+    Gere a estrutura completa separada em:
+    📌 **TEXTO DA ARTE / CARROSSEL**
+    📌 **LEGENDA DO POST**
     """
     res = model.generate_content(prompt)
     return res.text
@@ -193,7 +199,7 @@ except Exception as e:
     st.error(f"Erro ao carregar configurações do perfil: {e}")
     st.stop()
 
-# --- MAPEAMENTO DOS PRODUTOS / BASES DE CONHECIMENTO ---
+# --- MAPEAMENTO DOS PRODUTOS ---
 MAPA_PRODUTOS = {
     "1️⃣ Dados": "profiles.jean_victor.dados",
     "2️⃣ Apresentações Profissionais": "profiles.jean_victor.apresentacoes",
@@ -234,7 +240,7 @@ with st.sidebar:
             del st.session_state[key]
         st.rerun()
 
-# --- PASSO 0: FORMATO (TELA INICIAL) ---
+# --- PASSO 0: FORMATO ---
 if st.session_state.formato is None:
     st.subheader("Olá Jean Victor! O que vamos criar hoje?")
     fmt = st.radio("Selecione o formato:", ["Post Único (4:5)", "Carrossel (4:5)", "Reels (Apenas Roteiro)"])
@@ -277,7 +283,6 @@ else:
         st.subheader(f"ETAPA 4: Definição do Conteúdo — {st.session_state.produto}")
         
         if st.session_state.opcao_ideia == "2️⃣ Quero ideias estratégicas":
-            
             if not st.session_state.ideias_lista:
                 if st.button("💡 Gerar 5 Ideias Estratégicas"):
                     with st.spinner("Analisando base de conhecimento..."):
@@ -324,7 +329,7 @@ else:
         st.subheader("ETAPA 5 & 6: Estrutura Estratégica e Direção Visual")
 
         if not st.session_state.estrutura_rascunho:
-            with st.spinner("Construindo narrativa de alta retenção..."):
+            with st.spinner("Construindo narrativa de alta retenção no padrão Jean Victor..."):
                 try:
                     res_texto = gerar_estrutura_gemini(
                         GEMINI_API_KEY, 
@@ -363,9 +368,8 @@ else:
             st.success("O Roteiro para Reels foi concluído na etapa anterior.")
         else:
             if not st.session_state.imagem_gerada_url:
-                with st.spinner("Renderizando arte e tipografia no FLUX.1 [dev] (Aguarde de 15s a 25s)..."):
+                with st.spinner("Renderizando arte e iluminação no FLUX.1 [dev] (Aguarde de 15s a 25s)..."):
                     try:
-                        # Extrai a headline gerada pelo Gemini para renderizar na imagem
                         texto_headline = st.session_state.ideia_escolhida
                         if st.session_state.estrutura_rascunho and "HEADLINE" in st.session_state.estrutura_rascunho.upper():
                             lines = st.session_state.estrutura_rascunho.split("\n")
@@ -376,13 +380,12 @@ else:
                                         texto_headline = prox.replace('"', '')
                                         break
 
-                        # Prompt refinado instruindo o FLUX a renderizar o texto corporativo em destaque
                         prompt_flux = f"""
-                        High-end professional social media graphic design banner. 
-                        Minimalist executive dark background: deep blue and charcoal dark mood lighting, sleek modern laptop displaying subtle data charts in background.
-                        In the center, large bold white typography overlay text that reads exactly: "{texto_headline}".
-                        The text is highly legible, beautifully styled, perfectly centered, crisp corporate typography.
-                        8k resolution, professional presentation aesthetic, elegant contrast.
+                        High-end professional executive graphic banner for social media. 
+                        Dark deep blue and charcoal background with strong blue rim lighting and bright yellow light accent.
+                        Modern dark moody desk with a laptop displaying a magnifying glass over dark financial graphs.
+                        In the center, large heavy bold white and yellow typography overlay that reads exactly: "{texto_headline}".
+                        Clean graphic design, ultra legible typography, bold contrast, executive aesthetic, 8k resolution.
                         """
 
                         output = replicate.run(
@@ -413,7 +416,17 @@ else:
                     caption=f"Arte Final Vértice — Proporção {config_perfil['proporcao']}", 
                     use_container_width=True
                 )
-                st.markdown(f"[📥 Baixar Arte em Alta Resolução (PNG)]({st.session_state.imagem_gerada_url})")
+                
+                try:
+                    img_bytes = requests.get(st.session_state.imagem_gerada_url).content
+                    st.download_button(
+                        label="📥 Baixar Arte em Alta Resolução (PNG)",
+                        data=img_bytes,
+                        file_name="vertice_arte_final.png",
+                        mime="image/png"
+                    )
+                except Exception:
+                    st.markdown(f"[📥 Abrir Arte em Nova Aba]({st.session_state.imagem_gerada_url})")
 
         st.divider()
         st.subheader("📝 Rascunho & Legenda Estratégica:")
