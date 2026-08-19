@@ -4,6 +4,7 @@ import replicate
 import importlib
 import requests
 import time
+import re
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Plataforma Vértice | Jean Victor", layout="centered")
@@ -130,6 +131,21 @@ st.write("---")
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 REPLICATE_API_TOKEN = st.secrets.get("REPLICATE_API_TOKEN", "")
 
+def limpar_rascunho_exibicao(texto: str) -> str:
+    """Remove a seção do Prompt Visual da tela antes de mostrar ao usuário."""
+    linhas = texto.split("\n")
+    resultado = []
+    ignorar = False
+    for linha in linhas:
+        if "PROMPT VISUAL IDEOGRAM" in linha.upper():
+            ignorar = True
+            continue
+        if ignorar and (linha.startswith("📌") or linha.startswith("LEGENDA") or "LEGENDA DO POST" in linha.upper()):
+            ignorar = False
+        if not ignorar:
+            resultado.append(linha)
+    return "\n".join(resultado)
+
 def gerar_ideias_gemini(api_key: str, base_conhecimento: str) -> list:
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(
@@ -201,7 +217,7 @@ def gerar_estrutura_gemini(api_key: str, ideia: str, formato: str, paginas: int,
     | [frase curta 3]
 
     PROMPT VISUAL IDEOGRAM (EM INGLÊS):
-    [Crie uma descrição detalhada em inglês da cena ideal em ambiente corporativo azul marinho e iluminação dourada e inclua a frase exata entre aspas. Adicione estritamente no final: 'no watermarks, no logos, no stamps in corner']
+    [Descrição detalhada em inglês da cena corporativa em azul escuro e amarelo. Especifique tipografia gigante, em negrito e com alto contraste no topo da imagem. Inclua a frase principal curta entre aspas. Finalize com: 'no watermarks, no logos, clean high contrast typography, perfect spelling']
 
     📌 **LEGENDA DO POST**
     [Escreva a legenda aplicando ESTRITAMENTE as regras de linhas curtas e o encerramento correto do produto]
@@ -360,7 +376,8 @@ else:
                     st.error(f"Erro na conexão com o Gemini: {err}")
 
         if st.session_state.estrutura_rascunho:
-            st.markdown(st.session_state.estrutura_rascunho)
+            # Exibe o rascunho sem mostrar o Prompt do Ideogram
+            st.markdown(limpar_rascunho_exibicao(st.session_state.estrutura_rascunho))
 
             st.divider()
             st.subheader("ETAPA 7: Validação de Segurança")
@@ -386,7 +403,8 @@ else:
             if not st.session_state.imagem_gerada_url:
                 with st.spinner("Renderizando cena e tipografia no Ideogram v2 (Aguarde de 15s a 25s)..."):
                     try:
-                        prompt_ideogram = f"Cinematic executive boardroom scene, deep dark navy blue room background, professional corporate lighting with vibrant golden yellow highlights. A stressed manager at a modern glass table looking uncertain. Overlay text reading strictly in bold clean letters: \"{st.session_state.ideia_escolhida}\". No watermarks, no logos, no stamps in corners, clean edges, 8k resolution graphic design poster."
+                        # Extração do prompt dinâmico
+                        prompt_ideogram = f"GIANT BOLD HEADLINE OVERLAY reading strictly: \"{st.session_state.ideia_escolhida.upper()}\". High contrast yellow and white sans-serif typography at top. Executive boardroom background in deep navy blue with golden highlights. Professional graphic design poster, clean layout, no watermarks, no logos, no typos, 8k resolution."
 
                         if st.session_state.estrutura_rascunho and "PROMPT VISUAL IDEOGRAM" in st.session_state.estrutura_rascunho.upper():
                             lines = st.session_state.estrutura_rascunho.split("\n")
@@ -394,7 +412,7 @@ else:
                                 if "PROMPT VISUAL IDEOGRAM" in line.upper() and idx + 1 < len(lines):
                                     prox = lines[idx + 1].strip()
                                     if prox:
-                                        prompt_ideogram = prox + ", no watermarks, no logos, no stamps, clean composition"
+                                        prompt_ideogram = prox + ", giant bold high-contrast typography, top position, no watermarks, no logos, clean composition"
                                         break
 
                         output = replicate.run(
@@ -443,4 +461,4 @@ else:
         st.divider()
         st.subheader("📝 Rascunho & Legenda Estratégica:")
         if st.session_state.estrutura_rascunho:
-            st.markdown(st.session_state.estrutura_rascunho)
+            st.markdown(limpar_rascunho_exibicao(st.session_state.estrutura_rascunho))
