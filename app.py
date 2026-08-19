@@ -131,9 +131,53 @@ st.write("---")
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
 REPLICATE_API_TOKEN = st.secrets.get("REPLICATE_API_TOKEN", "")
 
-# Configura o Gemini com alias dinâmico
-genai.configure(api_key=GEMINI_API_KEY)
-model_gemini = genai.GenerativeModel("gemini-flash-latest")
+# --- FUNÇÕES COM CACHE PARA ECONOMIZAR CRÉDITOS DO GEMINI ---
+@st.cache_data(show_spinner=False)
+def gerar_ideias_gemini(api_key: str, base_conhecimento: str) -> list:
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-flash-latest")
+    prompt = f"""
+    Você é o estrategista de conteúdo do especialista Jean Victor.
+    Base de Conhecimento do Produto:
+    {base_conhecimento}
+
+    Gere exatamente 5 ideias curtas, provocativas e de alto impacto de temas para o post.
+    REGRA CRÍTICA: NÃO inclua bordão, slogan, CTA ou frases de encerramento no final das ideias. Apenas o tema/ideia central de forma direta.
+    Responda estritamente em formato de lista numerada simples (1. Ideia, 2. Ideia...).
+    """
+    res = model.generate_content(prompt)
+    linhas = [line.strip() for line in res.text.split("\n") if line.strip() and line.strip()[0].isdigit()]
+    return linhas if len(linhas) > 0 else [res.text]
+
+@st.cache_data(show_spinner=False)
+def gerar_estrutura_gemini(api_key: str, ideia: str, formato: str, paginas: int, base_conhecimento: str) -> str:
+    genai.configure(api_key=api_key)
+    model = genai.GenerativeModel("gemini-flash-latest")
+    
+    regra_bordao = ""
+    if formato == "Reels (Apenas Roteiro)":
+        regra_bordao = "- OBRIGATÓRIO: Forneça a LEGENDA/ROTEIRO completa finalizando rigorosamente com o JARGÃO/CTA OBRIGATÓRIO indicado na base de conhecimento."
+    else:
+        regra_bordao = "- NÃO utilize bordão fixo ao final da legenda/post a menos que seja um roteiro de Reels."
+
+    prompt = f"""
+    Você é o motor da Plataforma Vértice para o especialista Jean Victor.
+    Tema: '{ideia}'
+    Formato: {formato} ({paginas} páginas se carrossel)
+    
+    BASE DE CONHECIMENTO E REGRAS DO PRODUTO:
+    {base_conhecimento}
+    
+    Regras de Copy:
+    - Identifique a Categoria e Objetivo (Atrair, Ensinar ou Fortalecer autoridade).
+    - Headline dominante com máximo 12 a 18 palavras NO TOTAL da arte.
+    - Predomínio de caixa baixa (70% caixa baixa / 30% caixa alta em termos estratégicos).
+    - Tensão, provocação e corte de 50% de textos desnecessários.
+    - OBRIGATÓRIO: Forneça a HEADLINE exata da capa/arte.
+    {regra_bordao}
+    """
+    res = model.generate_content(prompt)
+    return res.text
 
 # --- CARREGA CONFIGURAÇÃO VISUAL DO PERFIL ---
 try:
@@ -226,23 +270,12 @@ else:
         st.subheader(f"ETAPA 4: Definição do Conteúdo — {st.session_state.produto}")
         
         if st.session_state.opcao_ideia == "2️⃣ Quero ideias estratégicas":
-            if st.button("💡 Gerar 5 Ideias Estratégicas"):
+            if st.button("💡 Gerar 5 Ideias Estratégicas") or len(st.session_state.ideias_lista) > 0:
                 with st.spinner("Analisando base de conhecimento do produto..."):
-                    prompt_ideias = f"""
-                    Você é o estrategista de conteúdo do especialista Jean Victor.
-                    Base de Conhecimento do Produto:
-                    {base_conhecimento}
-
-                    Gere exatamente 5 ideias curtas, provocativas e de alto impacto de temas para o post.
-                    REGRA CRÍTICA: NÃO inclua bordão, slogan, CTA ou frases de encerramento no final das ideias. Apenas o tema/ideia central de forma direta.
-                    Responda estritamente em formato de lista numerada simples (1. Ideia, 2. Ideia...).
-                    """
                     try:
-                        res = model_gemini.generate_content(prompt_ideias)
-                        linhas = [line.strip() for line in res.text.split("\n") if line.strip() and line.strip()[0].isdigit()]
-                        st.session_state.ideias_lista = linhas if len(linhas) > 0 else [res.text]
+                        st.session_state.ideias_lista = gerar_ideias_gemini(GEMINI_API_KEY, base_conhecimento)
                     except Exception as err:
-                        st.error(f"Erro na conexão com o Gemini (Etapa 4): {err}")
+                        st.error(f"Erro na conexão com o Gemini: {err}")
 
             if st.session_state.ideias_lista:
                 st.write("---")
@@ -250,7 +283,7 @@ else:
                 for i, idx_ideia in enumerate(st.session_state.ideias_lista):
                     if st.button(f"{idx_ideia}", key=f"btn_ideia_{i}"):
                         st.session_state.ideia_escolhida = idx_ideia
-                        st.session_state.estrutura_rascunho = None # Reseta o rascunho anterior
+                        st.session_state.estrutura_rascunho = None
                         st.session_state.imagem_gerada_url = None
                         st.session_state.etapa = 5
                         st.rerun()
@@ -273,36 +306,18 @@ else:
 
         if not st.session_state.estrutura_rascunho:
             with st.spinner("Construindo narrativa de alta retenção..."):
-                
-                # Regra do Bordão apenas para Reels
-                regra_bordao = ""
-                if st.session_state.formato == "Reels (Apenas Roteiro)":
-                    regra_bordao = "- OBRIGATÓRIO: Forneça a LEGENDA/ROTEIRO completa finalizando rigorosamente com o JARGÃO/CTA OBRIGATÓRIO indicado na base de conhecimento."
-                else:
-                    regra_bordao = "- NÃO utilize bordão fixo ao final da legenda/post a menos que seja um roteiro de Reels."
-
-                prompt_estrutura = f"""
-                Você é o motor da Plataforma Vértice para o especialista Jean Victor.
-                Tema: '{st.session_state.ideia_escolhida}'
-                Formato: {st.session_state.formato} ({st.session_state.num_paginas} páginas se carrossel)
-                
-                BASE DE CONHECIMENTO E REGRAS DO PRODUTO:
-                {base_conhecimento}
-                
-                Regras de Copy:
-                - Identifique a Categoria e Objetivo (Atrair, Ensinar ou Fortalecer autoridade).
-                - Headline dominante com máximo 12 a 18 palavras NO TOTAL da arte.
-                - Predomínio de caixa baixa (70% caixa baixa / 30% caixa alta em termos estratégicos).
-                - Tensão, provocação e corte de 50% de textos desnecessários.
-                - OBRIGATÓRIO: Forneça a HEADLINE exata da capa/arte.
-                {regra_bordao}
-                """
                 try:
-                    res = model_gemini.generate_content(prompt_estrutura)
-                    st.session_state.estrutura_rascunho = res.text
+                    res_texto = gerar_estrutura_gemini(
+                        GEMINI_API_KEY, 
+                        st.session_state.ideia_escolhida, 
+                        st.session_state.formato, 
+                        st.session_state.num_paginas, 
+                        base_conhecimento
+                    )
+                    st.session_state.estrutura_rascunho = res_texto
                     st.rerun()
                 except Exception as err:
-                    st.error(f"Erro na conexão com o Gemini (Etapa 5): {err}")
+                    st.error(f"Erro na conexão com o Gemini: {err}")
 
         if st.session_state.estrutura_rascunho:
             st.markdown(st.session_state.estrutura_rascunho)
@@ -321,7 +336,7 @@ else:
                     st.session_state.estrutura_rascunho = None
                     st.rerun()
 
-    # --- ETAPA 8: EXECUÇÃO VISUAL ---
+    # --- ETAPA 8: EXECUÇÃO VISUAL (REPLICATE / FLUX) ---
     elif st.session_state.etapa == 8:
         st.subheader("ETAPA 8: Renderização Visual Vértice")
         
@@ -336,10 +351,15 @@ else:
                         Topic/Headline: '{st.session_state.ideia_escolhida}'.
                         """
 
-                        rep_client = replicate.Client(api_token=REPLICATE_API_TOKEN, timeout=120)
+                        # Uso direto do Replicate com modelo específico e timeout seguro
+                        client = replicate.Client(api_token=REPLICATE_API_TOKEN)
                         
-                        output = rep_client.run(
-                            "black-forest-labs/flux-dev",
+                        # Inicia a predição assíncrona para evitar estouro de timeout no HTTP client
+                        model = client.models.get("black-forest-labs/flux-dev")
+                        version = model.versions.get("39a1b0cd22d572f6a73c015b6343c1dc1180497551048b2600ff502a831e5c0e")
+                        
+                        prediction = client.predictions.create(
+                            version=version,
                             input={
                                 "prompt": prompt_flux,
                                 "aspect_ratio": "4:5",
@@ -347,14 +367,22 @@ else:
                                 "guidance": 3.5
                             }
                         )
-                        
-                        image_url = str(output[0]) if isinstance(output, list) else str(output)
-                        st.session_state.imagem_gerada_url = image_url
+
+                        # Loop de verificação simples de status
+                        while prediction.status not in ["succeeded", "failed", "canceled"]:
+                            time.sleep(2)
+                            prediction.reload()
+
+                        if prediction.status == "succeeded":
+                            output = prediction.output
+                            image_url = output[0] if isinstance(output, list) else str(output)
+                            st.session_state.imagem_gerada_url = image_url
+                            st.rerun()
+                        else:
+                            st.error(f"Falha no processamento da imagem: {prediction.error}")
 
                     except Exception as err:
-                        st.error(f"Erro ao gerar a imagem no Replicate: {err}")
-                        if st.button("🔄 Tentar Gerar Novamente"):
-                            st.rerun()
+                        st.error(f"Erro ao processar imagem no Replicate: {err}")
 
             if st.session_state.imagem_gerada_url:
                 st.image(st.session_state.imagem_gerada_url, caption=f"Arte Final Vértice — Proporção {config_perfil['proporcao']}", use_container_width=True)
