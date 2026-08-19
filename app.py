@@ -3,6 +3,8 @@ import json
 import os
 import re
 import importlib
+import random
+from difflib import SequenceMatcher
 from typing import Optional
 
 import requests
@@ -228,6 +230,13 @@ for key in ESTADOS:
 if "etapa" not in st.session_state:
 
     st.session_state.etapa = 0
+
+
+# Histórico da sessão: usado apenas para impedir repetição de ideias.
+# Não é apagado ao clicar em "Iniciar Novo Conteúdo".
+if "historico_ideias" not in st.session_state:
+
+    st.session_state.historico_ideias = []
 
 
 # ============================================================
@@ -635,6 +644,14 @@ def normalizar_conteudo(
                         )
                     ),
 
+                "direcao_visual":
+                    limpar_texto(
+                        pagina.get(
+                            "direcao_visual",
+                            "",
+                        )
+                    ),
+
             }
 
         )
@@ -701,10 +718,92 @@ def normalizar_conteudo(
 # GEMINI — IDEIAS
 # ============================================================
 
+def _normalizar_ideia_para_comparacao(texto: str) -> str:
+
+    texto = limpar_texto(texto).lower()
+
+    texto = re.sub(
+        r"[^a-zà-ÿ0-9\s]",
+        " ",
+        texto
+    )
+
+    return " ".join(texto.split())
+
+
+def _ideia_muito_parecida(
+    ideia: str,
+    anteriores: list,
+    limite: float = 0.66,
+):
+
+    atual = _normalizar_ideia_para_comparacao(
+        ideia
+    )
+
+    if not atual:
+        return True
+
+    for anterior in anteriores:
+
+        base = _normalizar_ideia_para_comparacao(
+            anterior
+        )
+
+        if not base:
+            continue
+
+        if atual == base:
+            return True
+
+        similaridade = SequenceMatcher(
+            None,
+            atual,
+            base,
+        ).ratio()
+
+        if similaridade >= limite:
+            return True
+
+    return False
+
+
+def _limitar_ideia(
+    ideia: str,
+    max_palavras: int = 10,
+):
+
+    ideia = limpar_texto(
+        ideia
+    )
+
+    ideia = re.sub(
+        r"^(ideia|tema|sugestão)\s*:\s*",
+        "",
+        ideia,
+        flags=re.IGNORECASE,
+    )
+
+    palavras = ideia.split()
+
+    if len(palavras) > max_palavras:
+
+        ideia = " ".join(
+            palavras[:max_palavras]
+        )
+
+    return ideia.rstrip(
+        ".;:-"
+    )
+
+
 def gerar_ideias_gemini(
     api_key: str,
     base_conhecimento: str,
+    historico: Optional[list] = None,
 ):
+
+    historico = historico or []
 
     genai.configure(
         api_key=api_key
@@ -713,8 +812,40 @@ def gerar_ideias_gemini(
     model = genai.GenerativeModel(
         "gemini-3.5-flash-lite",
         generation_config={
-            "temperature": 0.85,
+            "temperature": 0.95,
         },
+    )
+
+    territorios = [
+        "dor silenciosa",
+        "erro comum",
+        "contraste inesperado",
+        "mito do mercado",
+        "custo invisível",
+        "pergunta incômoda",
+        "sinal que o gestor ignora",
+        "bastidor de uma decisão",
+        "consequência prática",
+        "mudança de perspectiva",
+        "antes e depois conceitual",
+        "opinião forte",
+    ]
+
+    territorios_selecionados = random.sample(
+        territorios,
+        5,
+    )
+
+    usadas = historico[-30:]
+
+    historico_texto = "\n".join(
+        f"- {x}"
+        for x in usadas
+    ) or "- nenhuma"
+
+    rodada = random.randint(
+        1000,
+        999999,
     )
 
     prompt = f"""
@@ -725,47 +856,68 @@ da Plataforma Vértice — Jean Victor.
 BASE DE CONHECIMENTO:
 {base_conhecimento}
 
+RODADA DE CRIAÇÃO: {rodada}
+
 Gere EXATAMENTE 5 ideias para Instagram.
 
-Distribua entre:
+Cada ideia deve usar UM território narrativo diferente,
+na ordem abaixo:
+
+1. {territorios_selecionados[0]}
+2. {territorios_selecionados[1]}
+3. {territorios_selecionados[2]}
+4. {territorios_selecionados[3]}
+5. {territorios_selecionados[4]}
+
+Distribua naturalmente entre:
 • descoberta
 • conteúdo técnico
 • posicionamento
 
-REGRAS:
+REGRAS DE TAMANHO:
 
-• cada ideia deve ser curta;
-• cada ideia deve ter no máximo 12 palavras;
-• preferência por 5 a 9 palavras;
+• máximo 10 palavras;
+• preferência por 5 a 8 palavras;
 • uma única frase;
-• específica;
-• estratégica;
-• provocativa quando fizer sentido;
-• fácil de entender;
-• sem explicações;
 • sem subtítulo;
-• sem justificativa;
-• sem descrição de formato.
+• sem explicação;
+• sem justificativa.
 
-NÃO faça:
+REGRAS DE QUALIDADE:
 
-• ideias longas;
+• cada ideia precisa ter um ângulo diferente;
+• não apenas troque palavras de uma mesma ideia;
+• evite começar várias ideias com a mesma estrutura;
+• evite repetir a mesma dor;
+• evite repetir "dados", "dashboard", "planilha",
+  "decisão", "clareza" ou "estratégia" em todas;
+• varie o vocabulário;
+• pense em conteúdo que poderia virar um post forte;
+• seja específico ao produto;
+• seja fácil de entender;
+• provoque curiosidade quando fizer sentido.
+
+NÃO FAÇA:
+
 • mini textos;
 • parágrafos;
-• explicações;
 • listas internas;
 • emojis;
 • CTA;
 • hashtags;
 • bordões;
-• slogans da marca;
+• slogans;
+• assinatura;
 • "Vamos transformar seus dados em decisão?";
-• qualquer assinatura ou frase institucional.
+• qualquer frase institucional.
 
-IMPORTANTE:
+A ideia é APENAS o tema/ângulo.
 
-A ideia deve ser apenas o TEMA/ÂNGULO
-do conteúdo.
+IDEIAS JÁ USADAS NESTA SESSÃO:
+{historico_texto}
+
+NENHUMA das 5 novas ideias pode ser igual
+ou muito parecida com essas ideias.
 
 Retorne SOMENTE:
 
@@ -781,7 +933,7 @@ Retorne SOMENTE:
         prompt
     )
 
-    linhas = []
+    candidatas = []
 
     for linha in (
         resposta.text or ""
@@ -798,16 +950,90 @@ Retorne SOMENTE:
             linha,
         )
 
-        linha = limpar_texto(
+        linha = _limitar_ideia(
+            linha,
+            10,
+        )
+
+        if not linha:
+            continue
+
+        if _ideia_muito_parecida(
+            linha,
+            candidatas + usadas,
+        ):
+            continue
+
+        candidatas.append(
             linha
         )
 
-        if linha:
-            linhas.append(
+        if len(candidatas) == 5:
+            break
+
+    if len(candidatas) < 5:
+
+        prompt_reforco = f"""
+
+Crie {5 - len(candidatas)} ideias NOVAS para Instagram
+sobre este produto:
+
+{base_conhecimento}
+
+Já aceitas:
+{chr(10).join("- " + x for x in candidatas)}
+
+Já usadas anteriormente:
+{historico_texto}
+
+REGRAS:
+- máximo 8 palavras por ideia;
+- ângulos totalmente diferentes;
+- não repetir estrutura;
+- não usar bordões;
+- não usar CTA;
+- não usar hashtags;
+- não explicar;
+- retornar somente as ideias numeradas.
+
+"""
+
+        resposta_2 = model.generate_content(
+            prompt_reforco
+        )
+
+        for linha in (
+            resposta_2.text or ""
+        ).splitlines():
+
+            linha = re.sub(
+                r"^\d+[\.\)]\s*",
+                "",
+                linha.strip(),
+            )
+
+            linha = _limitar_ideia(
+                linha,
+                10,
+            )
+
+            if not linha:
+                continue
+
+            if _ideia_muito_parecida(
+                linha,
+                candidatas + usadas,
+            ):
+                continue
+
+            candidatas.append(
                 linha
             )
 
-    return linhas[:5]
+            if len(candidatas) == 5:
+                break
+
+    return candidatas[:5]
 
 
 # ============================================================
@@ -999,168 +1225,59 @@ ou qualquer outro bordão institucional.
 CTA deve ser contextual.
 
 ==================================================
-VISUAL
+DIREÇÃO VISUAL
 ==================================================
 
-A fotografia precisa representar
-VISUALMENTE o assunto da página.
+A imagem não é decoração.
+Ela precisa ser uma metáfora visual clara da ideia.
 
-Não gere um escritório genérico
-apenas porque o conteúdo é profissional.
+Antes do prompt_visual, pense:
+"Se eu remover todo o texto da arte,
+a fotografia ainda comunica o assunto?"
 
-Escolha uma cena específica.
+Se a resposta for não, mude a cena.
 
-Exemplos:
+Crie UMA cena fotográfica específica.
+Não misture várias ideias.
 
-• dashboard → tela com indicadores;
-• apresentação → palco, tela, apresentação;
-• dados → visualização de dados ou análise;
-• produtividade → processo, documentos, fluxo;
-• decisão → pessoa analisando informação;
-• Nutribook → material nutricional, planejamento,
-  atendimento, organização;
-• Vértice → branding, conteúdo, comunicação;
-• apresentações → apresentação profissional,
-  palco, audiência, tela;
-• Método 5P → conteúdo, posicionamento,
-  comunicação e estratégia.
+Evite o clichê "executivo em escritório olhando notebook".
 
-A cena deve fazer sentido mesmo sem texto.
+Varie entre:
+• objeto em destaque;
+• situação de trabalho;
+• detalhe de processo;
+• contraste visual;
+• ambiente profissional;
+• pessoa em ação;
+• metáfora concreta;
+• composição editorial.
 
-==================================================
-IDENTIDADE VISUAL
-==================================================
-
-Padrão Vértice:
-
-• azul navy profundo;
-• azul royal;
-• azul elétrico sofisticado;
-• branco;
-• amarelo #F4C70F;
-• iluminação azul cinematográfica;
-• contraste elegante;
-• profundidade;
-• fotografia editorial premium;
-• aparência comercial;
-• visual moderno;
-• visual tecnológico;
-• acabamento sofisticado.
-
-O azul precisa ser VISIVELMENTE azul.
-
-Não deixar a imagem cinza.
-
-Não deixar a imagem preta.
-
-Não deixar a imagem excessivamente escura.
-
-==================================================
-ELEMENTOS PROIBIDOS
-==================================================
-
-NUNCA inserir:
-
-• folhas;
-• plantas;
-• ramos;
-• folhagens;
-• flores;
-• vasos com plantas;
-• vegetação;
-• elementos botânicos;
-• estética naturalista;
-• estética tropical;
-• decoração vegetal;
-• logos;
-• logotipos;
-• marcas;
-• marcas d'água;
-• textos;
-• letras;
-• palavras;
-• gráficos com texto;
-• infográficos;
-• ilustrações;
-• CGI;
-• 3D;
-• arte digital;
-• visual artificial.
-
-A fotografia deve parecer fotografia real.
-
-==================================================
-COMPOSIÇÃO
-==================================================
-
-Sempre pensar na composição final.
-
-O texto será aplicado posteriormente pelo Python.
-
-Portanto:
-
-• reservar área limpa para texto;
-• evitar elementos importantes no lado esquerdo;
-• assunto principal preferencialmente
-  à direita ou centro-direita;
-• profundidade visual;
-• composição editorial;
-• iluminação cinematográfica;
-• enquadramento vertical;
-• fotografia realista.
-
-==================================================
-LEGENDA
-==================================================
-
-A legenda é OBRIGATÓRIA.
-
-Deve:
-
-• complementar a arte;
-• não repetir integralmente a headline;
-• ser estratégica;
-• ser curta;
-• ter CTA natural;
-• estar em PT-BR;
-• conter exatamente 5 hashtags.
-
-==================================================
-PROMPT VISUAL
-==================================================
+Use pessoas somente quando elas realmente
+ajudarem a contar a história.
 
 "prompt_visual" deve ser escrito EM INGLÊS.
 
-Ele deve descrever SOMENTE:
-
-• cena;
+Descreva:
+• sujeito principal;
+• ação;
 • ambiente;
-• objeto;
-• pessoa, quando necessária;
 • enquadramento;
+• câmera;
 • iluminação;
-• fotografia;
-• composição.
+• composição;
+• espaço negativo para texto.
 
 NUNCA coloque no prompt_visual:
-
 • texto;
 • headline;
 • CTA;
 • logo;
 • marca;
+• letras;
+• telas com palavras legíveis;
 • folhas;
 • plantas;
 • elementos botânicos.
-
-O prompt deve ser específico à ideia.
-
-Não escreva apenas:
-
-"modern office".
-
-Descreva a cena que realmente representa
-o conteúdo.
 
 ==================================================
 SAÍDA
@@ -1191,7 +1308,8 @@ Formato:
         "apoio curto"
       ],
       "cta": "CTA curto",
-      "prompt_visual": "specific English photographic scene, realistic commercial photography, vertical composition, subject on right, clean space on left"
+      "direcao_visual": "brief visual concept in English",
+      "prompt_visual": "specific English photographic scene, realistic commercial photography, vertical composition, subject on right, clean space on left for later typography"
     }}
   ]
 }}
@@ -1221,103 +1339,145 @@ CARROSSEL:
 
 
 # ============================================================
-# PROMPT VISUAL — REFORÇO IDEOGRAM
+# MOTOR VISUAL — VÉRTICE
 # ============================================================
 
 def construir_prompt_visual(
     prompt_base: str,
+    direcao_visual: str = "",
 ):
 
     prompt_base = limpar_texto(
         prompt_base
     )
 
+    direcao_visual = limpar_texto(
+        direcao_visual
+    )
+
+    if not prompt_base:
+        prompt_base = (
+            "specific professional scene directly related "
+            "to the content topic"
+        )
+
+    if direcao_visual:
+        conceito = (
+            f"VISUAL CONCEPT: {direcao_visual}. "
+        )
+    else:
+        conceito = ""
+
     reforco = """
 
-Hyper-realistic premium editorial commercial photography.
-Authentic real-world scene.
-Sophisticated deep navy blue and royal blue color environment.
-Clearly visible blue tones.
-Elegant cinematic blue lighting.
-Professional photography.
-Natural realistic materials.
-Realistic textures.
-Natural photographic depth of field.
+Create ONE coherent photographic scene.
+
+The image must communicate the content topic
+through the scene itself, not through typography.
+
+Premium editorial commercial photography.
+Photorealistic real-world photography.
+Sophisticated Brazilian business brand aesthetic.
+Deep navy blue and vivid royal blue environment.
+Controlled electric-blue accents.
+Small, elegant touches of warm yellow light.
+High-end cinematic lighting.
+Natural skin and material textures.
+Realistic proportions.
+Professional camera photography.
+Subtle depth of field.
 Premium advertising photography.
-Vertical editorial composition.
-Main subject on the right or center-right.
-Clean visual negative space on the left for later typography.
-The scene must visually represent the subject of the content.
-No generic decorative office scene unless the topic explicitly requires it.
-No text.
-No words.
-No letters.
-No typography.
-No logo.
-No brand mark.
-No watermark.
-No leaves.
-No plants.
-No branches.
-No foliage.
-No flowers.
-No vase with plants.
-No botanical elements.
-No vegetation.
-No natural decoration.
-No CGI.
-No 3D render.
+Vertical 3:4 composition.
+
+Composition:
+- main visual subject on the right or center-right;
+- clean dark-blue negative space on the left;
+- enough breathing room at the upper-left for typography;
+- no important object behind the future headline;
+- strong focal point;
+- intentional visual hierarchy.
+
+The visual must be SPECIFIC to the topic.
+Do not create a generic office.
+Do not create a generic corporate stock photo.
+Do not default to an executive looking at a laptop.
+
+Absolutely no visible written language anywhere:
+no text, no words, no letters, no numbers,
+no captions, no labels, no logos, no watermarks,
+no readable screen content, no signage.
+
+No botanical elements:
+no plants, no leaves, no branches, no foliage,
+no flowers, no vases with plants, no vegetation.
+
 No illustration.
-No infographic.
+No 3D render.
+No CGI.
 No graphic design.
 No poster.
-No mockup.
+No infographic.
+No presentation slide.
+No artificial interface.
 """
 
     return (
-        prompt_base
+        conceito
+        + "\n"
+        + prompt_base
         + "\n"
         + reforco
     )
 
 
 # ============================================================
-# IDEOGRAM — NEGATIVE PROMPT
+# GERAÇÃO VISUAL
 # ============================================================
 
-NEGATIVE_PROMPT = """
+def _extrair_url_output(output):
 
-text, words, letters, typography, headline,
-caption, logo, brand mark, watermark,
-poster, graphic design, infographic,
-presentation slide, UI screenshot,
-leaves, plants, branches, foliage, flowers,
-vase plants, botanical decoration, vegetation,
-tropical plants, natural decoration,
-generic office plant,
-CGI, 3D render, illustration, cartoon,
-artificial looking scene,
-plastic looking objects,
-oversaturated colors,
-gray image, black image,
-low contrast, blurry subject,
-distorted anatomy, deformed hands,
-extra fingers, duplicated objects,
-empty generic office,
-generic corporate stock photo
-"""
+    if isinstance(
+        output,
+        list,
+    ) and output:
 
+        primeiro = output[0]
 
-# ============================================================
-# IDEOGRAM
-# ============================================================
+        if hasattr(
+            primeiro,
+            "url",
+        ):
+
+            return str(
+                primeiro.url
+            )
+
+        return str(
+            primeiro
+        )
+
+    if hasattr(
+        output,
+        "url",
+    ):
+
+        return str(
+            output.url
+        )
+
+    return str(
+        output
+    )
+
 
 def gerar_fundo_ideogram(
     prompt_visual: str,
+    direcao_visual: str = "",
 ):
 
     prompt_final = construir_prompt_visual(
-        prompt_visual
+        prompt_visual,
+        direcao_visual,
     )
 
     if not REPLICATE_API_TOKEN:
@@ -1326,54 +1486,35 @@ def gerar_fundo_ideogram(
             "REPLICATE_API_TOKEN não configurada."
         )
 
+    # Imagen 4 — foco em fotografia e aderência visual.
     output = replicate.run(
 
-        "ideogram-ai/ideogram-v2",
+        "google/imagen-4",
 
         input={
 
             "prompt":
                 prompt_final,
 
-            "negative_prompt":
-                NEGATIVE_PROMPT,
+            "image_size":
+                "1K",
 
             "aspect_ratio":
                 "3:4",
 
-            "style_type":
-                "Realistic",
+            "output_format":
+                "jpg",
 
-            "magic_prompt_option":
-                "Off",
+            "safety_filter_level":
+                "block_medium_and_above",
 
         },
 
     )
 
-    if isinstance(
-        output,
-        list,
-    ):
-
-        image_url = str(
-            output[0]
-        )
-
-    elif hasattr(
-        output,
-        "url",
-    ):
-
-        image_url = str(
-            output.url
-        )
-
-    else:
-
-        image_url = str(
-            output
-        )
+    image_url = _extrair_url_output(
+        output
+    )
 
     resposta = requests.get(
         image_url,
@@ -1967,7 +2108,6 @@ def renderizar_arte_final(
         )
 
 
-    # segurança
     palavras = headline.split()
 
     if len(palavras) > 10:
@@ -2460,16 +2600,29 @@ elif (
 
 
             with st.spinner(
-                "Consultando a base de conhecimento..."
+                "Criando 5 ângulos diferentes..."
             ):
 
                 st.session_state.ideias_lista = (
                     gerar_ideias_gemini(
                         GEMINI_API_KEY,
                         modulo.CONHECIMENTO,
+                        st.session_state.historico_ideias,
                     )
                 )
 
+
+            for ideia in st.session_state.ideias_lista:
+
+                if ideia not in st.session_state.historico_ideias:
+
+                    st.session_state.historico_ideias.append(
+                        ideia
+                    )
+
+            st.session_state.historico_ideias = (
+                st.session_state.historico_ideias[-50:]
+            )
 
             st.rerun()
 
@@ -2484,6 +2637,8 @@ elif (
 
                 key=f"btn_ideia_{i}",
 
+                use_container_width=False,
+
             ):
 
                 st.session_state.ideia_escolhida = (
@@ -2493,6 +2648,18 @@ elif (
                 st.session_state.etapa = 4
 
                 st.rerun()
+
+
+        st.write("")
+
+        if st.button(
+            "🔄 Gerar outras 5 ideias",
+            key="btn_novas_ideias",
+        ):
+
+            st.session_state.ideias_lista = None
+
+            st.rerun()
 
 
     # --------------------------------------------------------
@@ -2760,27 +2927,35 @@ elif (
                     )
                 )
 
+                direcao_visual = (
+                    pagina.get(
+                        "direcao_visual",
+                        "",
+                    )
+                )
+
 
                 if not prompt_visual:
 
-                    prompt_visual = """
+                    prompt_visual = f"""
 
-Specific premium commercial scene
-directly related to the content topic.
-Hyper-realistic editorial photography.
-Sophisticated professional environment.
-Deep navy blue and royal blue atmosphere.
+A specific real-world photographic scene
+that visually represents this content:
+{st.session_state.ideia_escolhida}.
+
+Choose one strong concrete visual metaphor,
+not a generic office.
+The subject must be obvious from the scene.
+Premium editorial commercial photography.
 Main subject on the right.
-Clean negative space on the left.
-Elegant cinematic blue lighting.
-Realistic materials.
-No generic office decoration.
+Clean dark-blue negative space on the left.
 """
 
 
                 raw_bytes = (
                     gerar_fundo_ideogram(
-                        prompt_visual
+                        prompt_visual,
+                        direcao_visual,
                     )
                 )
 
