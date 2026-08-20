@@ -340,7 +340,7 @@ else:
               "ideogram-ai/ideogram-v2",
               input={
                   "prompt": prompt_ideogram,
-                  "aspect_ratio": "4:5",
+                  "aspect_ratio": "3:4",
                   "style_type": "Realistic",
                   "magic_prompt_option": "Auto",
               },
