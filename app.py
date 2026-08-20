@@ -88,7 +88,7 @@ if menu == "➕ Novo Nutribook":
             email_paciente = st.text_input("E-mail do Paciente")
         
         st.subheader("Perfis / Protocolos do Paciente")
-        st.caption("Marque todas as opções aplicáveis:")
+        st.caption("Marque as opções aplicáveis:")
         
         lista_protocolos = [
             "Fertilidade Feminina",
