@@ -53,8 +53,11 @@ st.markdown("""
 # 3. Sidebar / Menu Lateral
 with st.sidebar:
     st.image("logo.png", width=160)
-    st.markdown("## **Nutribook**")
-    st.caption("Plataforma Nutricional de Alta Performance")
+    
+    # Mensagem de Boas-vindas Personalizada
+    nome_nutri = "Jean Victor"  # Pode vir de uma autenticação/parâmetro no futuro
+    st.markdown(f"#### Olá, **{nome_nutri}**! 👋")
+    st.caption("Vamos iniciar o próximo Nutribook?")
     
     st.divider()
     
@@ -104,7 +107,6 @@ if menu == "➕ Novo Nutribook":
             "Referência Geral"
         ]
         
-        # Criação das caixas de seleção individuais (estilo Google Forms)
         protocolos_selecionados = []
         for protocolo in lista_protocolos:
             if st.checkbox(protocolo, key=protocolo):
