@@ -137,7 +137,7 @@ GEMINI_API_KEY = st.secrets.get(
 # ============================================================
 
 GEMINI_TEXT_MODEL = "gemini-3.1-flash-lite"
-GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image"
+GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image-preview"
 
 # Durante o desenvolvimento/testes usamos 1K.
 # Depois da aprovação, altere SOMENTE para "2K".
@@ -409,9 +409,25 @@ def limpar_texto(texto: str) -> str:
         "",
     )
 
-    return " ".join(
+    texto = " ".join(
         texto.split()
     ).strip()
+
+    # Corrige mojibake comum (ex.: "nÃºmeros") sem alterar
+    # texto legítimo em português.
+    marcadores_mojibake = (
+        "Ã", "Â", "â€", "ðŸ", "�"
+    )
+
+    if any(m in texto for m in marcadores_mojibake):
+        try:
+            corrigido = texto.encode("latin1").decode("utf-8")
+            if "�" not in corrigido:
+                texto = corrigido
+        except Exception:
+            pass
+
+    return texto
 
 
 def normalizar_lista(valor):
@@ -653,6 +669,38 @@ def normalizar_conteudo(
                     limpar_texto(
                         pagina.get(
                             "direcao_visual",
+                            "",
+                        )
+                    ),
+
+                "sujeito_visual":
+                    limpar_texto(
+                        pagina.get(
+                            "sujeito_visual",
+                            "",
+                        )
+                    ),
+
+                "acao_visual":
+                    limpar_texto(
+                        pagina.get(
+                            "acao_visual",
+                            "",
+                        )
+                    ),
+
+                "ambiente_visual":
+                    limpar_texto(
+                        pagina.get(
+                            "ambiente_visual",
+                            "",
+                        )
+                    ),
+
+                "enquadramento_visual":
+                    limpar_texto(
+                        pagina.get(
+                            "enquadramento_visual",
                             "",
                         )
                     ),
@@ -1084,9 +1132,6 @@ REGRAS:
 # GEMINI — CONTEÚDO FINAL
 # ============================================================
 
-@st.cache_data(
-    show_spinner=False
-)
 @st.cache_data(show_spinner=False)
 def gerar_conteudo_final(
     api_key: str,
@@ -1125,8 +1170,7 @@ Gerar apenas roteiro.
 """
 
     prompt = f"""
-Você é o estrategista de conteúdo premium
-da Plataforma Vértice — Jean Victor.
+Você é o estrategista de conteúdo premium da Plataforma Vértice — Jean Victor.
 
 IDEIA ESCOLHIDA:
 {ideia}
@@ -1140,246 +1184,99 @@ BASE DE CONHECIMENTO DO PRODUTO:
 ESTRATÉGIA
 ==================================================
 
-A base de conhecimento define o que pode ser comunicado.
+Use a base de conhecimento como fonte principal.
+Não invente funcionalidades, números, resultados ou promessas.
 
-Não invente:
-• funcionalidades;
-• benefícios;
-• números;
-• resultados;
-• promessas;
-• informações.
-
-Nunca faça a ferramenta ser a protagonista.
-
-Priorize:
-• dor;
-• clareza;
-• decisão;
-• produtividade;
-• organização;
-• autoridade;
-• percepção profissional;
-• experiência;
-• ganho;
-• consequência.
-
-Tom:
-• estratégico;
-• direto;
-• provocativo;
-• premium.
-
-Evite:
-• motivacional;
-• genérico;
-• professoral;
-• amigável demais;
-• técnico demais.
+A comunicação deve ser estratégica, direta, provocativa e premium.
+Evite conteúdo motivacional, genérico ou professoral.
 
 ==================================================
 COPY DA ARTE
 ==================================================
 
-A arte deve ser compreendida em até 3 segundos.
-
-MENOS TEXTO.
+A arte precisa ser compreendida em até 3 segundos.
 
 POST:
-• headline de 3 a 8 palavras;
-• máximo 2 apoios;
-• cada apoio com no máximo 6 palavras;
-• CTA de no máximo 4 palavras;
-• comunicação principal extremamente curta.
+- exatamente 1 página;
+- headline de 3 a 8 palavras;
+- no máximo 2 apoios;
+- cada apoio com no máximo 6 palavras;
+- CTA opcional, máximo 4 palavras;
+- UMA única ideia.
 
 CARROSSEL:
-• uma ideia por página;
-• headline dominante;
-• headline de preferência 3 a 8 palavras;
-• no máximo 1 apoio;
-• apoio de preferência até 6 palavras;
-• CTA apenas quando realmente necessário.
+- exatamente {paginas} páginas;
+- uma ideia por página;
+- headline de 3 a 8 palavras;
+- no máximo 1 apoio curto por página;
+- CTA somente quando realmente necessário.
 
-Não transforme a arte em explicação.
-
-==================================================
-BORDÕES
-==================================================
-
-NUNCA inserir bordões ou slogans automaticamente.
-NUNCA inserir:
+NUNCA inserir bordões, slogans ou assinatura institucional.
+NUNCA usar automaticamente:
 "Vamos transformar seus dados em decisão?"
-ou qualquer frase institucional.
-
-CTA deve ser contextual.
 
 ==================================================
-VISUAL
+DIREÇÃO VISUAL — REGRA CRÍTICA
 ==================================================
 
-A fotografia precisa representar VISUALMENTE o assunto.
+A fotografia NÃO é decoração.
+Ela precisa representar concretamente a ideia escolhida.
 
-Não gere um escritório genérico apenas porque o conteúdo é profissional.
+Antes de escrever o prompt visual, responda mentalmente:
+"Se eu apagar todo o texto da arte, a fotografia ainda comunica a ideia?"
+Se não, escolha outra cena.
 
-Exemplos:
-• dashboard → tela com indicadores, sem texto legível;
-• apresentação → palco, tela, apresentação;
-• dados → visualização de dados ou análise;
-• produtividade → processo, documentos, fluxo;
-• decisão → pessoa analisando informação;
-• Nutribook → material nutricional, planejamento, atendimento, organização;
-• Vértice → branding, conteúdo, comunicação;
-• apresentações → apresentação profissional, palco, audiência, tela;
-• Método 5P → conteúdo, posicionamento, comunicação e estratégia.
+NÃO use escritório genérico.
+NÃO use automaticamente executivo olhando notebook.
+NÃO use plantas, decoração vegetal ou cenas de stock genéricas.
 
-A cena deve fazer sentido mesmo sem texto.
+Escolha UMA cena específica e visualmente inequívoca.
+Prefira, conforme a ideia:
+- objeto ou processo em destaque;
+- pessoa realizando uma ação relacionada ao problema;
+- contraste visual que represente a consequência;
+- detalhe de trabalho;
+- ambiente profissional somente quando ele for parte da ideia.
 
-==================================================
-IDENTIDADE VISUAL
-==================================================
+A cena deve ter:
+- sujeito principal claro;
+- ação ou situação clara;
+- ambiente coerente;
+- enquadramento fotográfico intencional;
+- iluminação cinematográfica;
+- espaço negativo à esquerda para o texto aplicado pelo Python.
 
-Padrão Vértice:
-• azul navy profundo;
-• azul royal;
-• azul elétrico sofisticado;
-• branco;
-• amarelo #F4C70F;
-• iluminação azul cinematográfica;
-• contraste elegante;
-• profundidade;
-• fotografia editorial premium;
-• aparência comercial;
-• visual moderno;
-• visual tecnológico;
-• acabamento sofisticado.
+IDENTIDADE VÉRTICE:
+- navy profundo + azul royal/elétrico claramente visível;
+- pequenos acentos amarelos;
+- fotografia comercial premium;
+- realista, sofisticada, moderna;
+- profundidade e contraste;
+- nunca cinza, nunca preta demais.
 
-O azul precisa ser VISIVELMENTE azul.
-Não deixar a imagem cinza.
-Não deixar a imagem preta.
-Não deixar a imagem excessivamente escura.
+PROIBIDO NA FOTOGRAFIA:
+- qualquer texto, palavra, letra ou número legível;
+- logos, marcas, marcas d'água;
+- gráficos, dashboards ou telas com informação legível;
+- infográficos, pôsteres, slides, interfaces;
+- ilustração, CGI, 3D, render;
+- plantas, folhas, ramos, flores, vasos com vegetação.
 
-==================================================
-ELEMENTOS PROIBIDOS
-==================================================
-
-NUNCA inserir:
-• folhas;
-• plantas;
-• ramos;
-• folhagens;
-• flores;
-• vasos com plantas;
-• vegetação;
-• elementos botânicos;
-• estética naturalista;
-• estética tropical;
-• logos;
-• logotipos;
-• marcas;
-• marcas d'água;
-• textos;
-• letras;
-• palavras;
-• números legíveis;
-• gráficos com texto;
-• infográficos;
-• ilustrações;
-• CGI;
-• 3D;
-• arte digital;
-• visual artificial.
-
-A fotografia deve parecer fotografia real.
-
-==================================================
-COMPOSIÇÃO
-==================================================
-
-O texto será aplicado posteriormente pelo Python.
-
-Portanto:
-• reservar área limpa para texto;
-• evitar elementos importantes no lado esquerdo;
-• assunto principal preferencialmente à direita ou centro-direita;
-• profundidade visual;
-• composição editorial;
-• iluminação cinematográfica;
-• enquadramento vertical;
-• fotografia realista.
+IMPORTANTE: o gerador de imagem recebe a direção abaixo e deve produzir SOMENTE a fotografia.
+Toda tipografia, headline, apoio, CTA e assinatura será aplicada posteriormente pelo Python.
 
 ==================================================
 LEGENDA
 ==================================================
 
-A legenda é OBRIGATÓRIA.
-
-Deve:
-• complementar a arte;
-• não repetir integralmente a headline;
-• ser estratégica;
-• ser curta;
-• ter CTA natural;
-• estar em PT-BR;
-• conter exatamente 5 hashtags.
-
-==================================================
-DIREÇÃO VISUAL
-==================================================
-
-A imagem não é decoração.
-Ela precisa ser uma metáfora visual clara da ideia.
-
-Se eu remover todo o texto da arte,
-a fotografia ainda comunica o assunto?
-
-Se a resposta for não, mude a cena.
-
-Crie UMA cena fotográfica específica.
-Não misture várias ideias.
-
-Evite o clichê "executivo em escritório olhando notebook".
-
-Varie entre:
-• objeto em destaque;
-• situação de trabalho;
-• detalhe de processo;
-• contraste visual;
-• ambiente profissional;
-• pessoa em ação;
-• metáfora concreta;
-• composição editorial.
-
-Use pessoas somente quando realmente ajudarem.
-
-"prompt_visual" deve ser escrito EM INGLÊS.
-
-Descreva:
-• sujeito principal;
-• ação;
-• ambiente;
-• enquadramento;
-• câmera;
-• iluminação;
-• composição;
-• espaço negativo para texto.
-
-NUNCA coloque no prompt_visual:
-• texto;
-• headline;
-• CTA;
-• logo;
-• marca;
-• letras;
-• telas com palavras legíveis;
-• folhas;
-• plantas;
-• elementos botânicos.
+Legenda curta em PT-BR, complementar à arte, sem repetir integralmente a headline.
+CTA natural e contextual. Exatamente 5 hashtags.
 
 ==================================================
 SAÍDA
 ==================================================
 
-Retorne SOMENTE JSON válido.
+Retorne SOMENTE JSON válido, sem markdown.
 
 Formato:
 
@@ -1387,31 +1284,34 @@ Formato:
   "categoria": "Descoberta | Conteúdo Técnico | Posicionamento",
   "objetivo": "Atrair | Ensinar | Fortalecer autoridade",
   "legenda": "legenda curta em PT-BR",
-  "hashtags": [
-    "#tag1",
-    "#tag2",
-    "#tag3",
-    "#tag4",
-    "#tag5"
-  ],
+  "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5"],
   "paginas": [
     {{
       "headline": "headline curta",
-      "apoios": [
-        "apoio curto"
-      ],
+      "apoios": ["apoio curto"],
       "cta": "CTA curto",
-      "prompt_visual": "specific English photographic scene, realistic commercial photography, vertical composition, subject on right, clean space on left",
-      "direcao_visual": "brief visual direction in English"
+      "sujeito_visual": "main concrete subject in English",
+      "acao_visual": "specific action or situation in English",
+      "ambiente_visual": "specific real environment in English",
+      "enquadramento_visual": "camera angle, lens feel and composition in English",
+      "prompt_visual": "complete English photographic scene description",
+      "direcao_visual": "short English art direction"
     }}
   ]
 }}
 
-POST:
-"paginas" = EXATAMENTE 1 item.
+REGRAS DO PROMPT VISUAL:
+- escreva em INGLÊS;
+- descreva somente fotografia/cena;
+- não escreva headline, CTA ou qualquer texto;
+- não peça telas com palavras ou números;
+- não peça logos ou marcas;
+- não peça plantas;
+- seja específico à IDEIA ESCOLHIDA;
+- uma única cena coerente.
 
-CARROSSEL:
-"paginas" = EXATAMENTE {paginas} itens.
+POST: "paginas" = EXATAMENTE 1 item.
+CARROSSEL: "paginas" = EXATAMENTE {paginas} itens.
 """
 
     texto = _gemini_generate_text(
@@ -1436,122 +1336,86 @@ CARROSSEL:
 def construir_prompt_visual(
     prompt_base: str,
     direcao_visual: str = "",
+    ideia: str = "",
+    produto: str = "",
+    sujeito_visual: str = "",
+    acao_visual: str = "",
+    ambiente_visual: str = "",
+    enquadramento_visual: str = "",
 ):
+    """Monta uma direção fotográfica fechada para o Gemini Image.
 
-    prompt_base = limpar_texto(
-        prompt_base
-    )
+    O objetivo é impedir que o modelo transforme o post em uma
+    foto corporativa genérica.
+    """
 
-    direcao_visual = limpar_texto(
-        direcao_visual
-    )
+    campos = {
+        "IDEIA CENTRAL": ideia,
+        "PRODUTO": produto,
+        "SUJEITO PRINCIPAL": sujeito_visual,
+        "AÇÃO / SITUAÇÃO": acao_visual,
+        "AMBIENTE": ambiente_visual,
+        "ENQUADRAMENTO": enquadramento_visual,
+        "DIREÇÃO VISUAL": direcao_visual,
+        "CENA COMPLETA": prompt_base,
+    }
 
-    if not prompt_base:
-        prompt_base = (
-            "specific professional scene directly related "
-            "to the content topic"
-        )
-
-    if direcao_visual:
-        conceito = (
-            f"VISUAL CONCEPT: {direcao_visual}. "
-        )
-    else:
-        conceito = ""
+    blocos = []
+    for titulo, valor in campos.items():
+        valor = limpar_texto(valor)
+        if valor:
+            blocos.append(f"{titulo}: {valor}")
 
     reforco = """
 
-Create ONE coherent photographic scene.
+ROLE: You are a premium commercial photographer, not a graphic designer.
+Create ONE single coherent photograph that visually explains the central idea.
 
-The image must communicate the content topic
-through the scene itself, not through typography.
+CRITICAL SEMANTIC RULE:
+The photograph must make sense without any written text.
+Do not make a generic office scene. Do not default to a business person looking at a laptop.
+Choose the most literal and visually recognizable real-world situation for the idea.
 
-Premium editorial commercial photography.
-Photorealistic real-world photography.
-Sophisticated Brazilian business brand aesthetic.
-Deep navy blue and vivid royal blue environment.
-Controlled electric-blue accents.
-Small, elegant touches of warm yellow light.
-High-end cinematic lighting.
-Natural skin and material textures.
-Realistic proportions.
-Professional camera photography.
-Subtle depth of field.
-Premium advertising photography.
-Vertical 3:4 composition.
+VÉRTICE VISUAL IDENTITY:
+Deep navy blue environment, clearly visible sophisticated royal/electric blue accents, restrained warm yellow accents, cinematic commercial lighting, premium editorial photography, realistic materials, realistic skin, natural proportions, sophisticated contrast, subtle depth of field.
 
-Composition:
-- main visual subject on the right or center-right;
-- clean dark-blue negative space on the left;
-- enough breathing room at the upper-left for typography;
-- no important object behind the future headline;
-- strong focal point;
-- intentional visual hierarchy.
+COMPOSITION:
+Vertical 4:5 composition. Main subject on the right or center-right. Keep the upper-left and left third visually calm and dark enough for typography added later. Do not place important objects behind the future headline. Strong focal point and clear visual hierarchy.
 
-The visual must be SPECIFIC to the topic.
-Do not create a generic office.
-Do not create a generic corporate stock photo.
-Do not default to an executive looking at a laptop.
+ABSOLUTE EXCLUSIONS:
+No text. No words. No letters. No numbers. No readable screens. No labels. No signs. No logos. No brands. No watermarks. No UI. No dashboard interface. No infographic. No presentation slide. No poster. No graphic design. No illustration. No CGI. No 3D render. No artificial typography. No plants. No leaves. No branches. No foliage. No flowers. No vegetation.
 
-Absolutely no visible written language anywhere:
-no text, no words, no letters, no numbers,
-no captions, no labels, no logos, no watermarks,
-no readable screen content, no signage.
-
-No botanical elements:
-no plants, no leaves, no branches, no foliage,
-no flowers, no vases with plants, no vegetation.
-
-No illustration.
-No 3D render.
-No CGI.
-No graphic design.
-No poster.
-No infographic.
-No presentation slide.
-No artificial interface.
+The final image must look like a real photograph taken for a premium Brazilian business brand.
 """
 
-    return (
-        conceito
-        + "\n"
-        + prompt_base
-        + "\n"
-        + reforco
-    )
+    return "\n".join(blocos) + reforco
 
 
 # ============================================================
 # GEMINI IMAGE — GERAÇÃO VISUAL VÉRTICE
 # ============================================================
 
-def _extrair_imagem_interaction(dados: dict) -> bytes:
-    """
-    Extrai a primeira imagem gerada da resposta REST
-    da Interactions API.
-    """
+def _extrair_imagem_generate_content(dados: dict) -> bytes:
+    """Extrai a primeira imagem inline da resposta Gemini REST."""
 
-    # Resposta futura/compatível que já exponha output_image.
-    output_image = dados.get("output_image")
+    candidatos = dados.get("candidates", [])
+    if not candidatos:
+        raise RuntimeError(f"Gemini Image sem candidates: {dados}")
 
-    if isinstance(output_image, dict):
-        data = output_image.get("data")
-        if data:
-            return __import__("base64").b64decode(data)
+    partes = (
+        candidatos[0]
+        .get("content", {})
+        .get("parts", [])
+    )
 
-    # Resposta REST documentada: steps -> model_output -> content -> image.
-    for step in dados.get("steps", []):
-        if step.get("type") != "model_output":
-            continue
-
-        for bloco in step.get("content", []):
-            if bloco.get("type") == "image" and bloco.get("data"):
-                return __import__("base64").b64decode(
-                    bloco["data"]
-                )
+    for parte in partes:
+        inline = parte.get("inlineData") or parte.get("inline_data")
+        if isinstance(inline, dict) and inline.get("data"):
+            import base64
+            return base64.b64decode(inline["data"])
 
     raise RuntimeError(
-        "Gemini Image não retornou uma imagem utilizável."
+        "Gemini Image respondeu sem imagem utilizável."
     )
 
 
@@ -1559,49 +1423,39 @@ def _gerar_imagem_gemini(
     prompt_final: str,
     image_size: str = GEMINI_IMAGE_SIZE,
 ) -> bytes:
-    """
-    Gera a fotografia diretamente pela Gemini Interactions API.
-
-    Durante os testes:
-        GEMINI_IMAGE_SIZE = "1K"
-
-    Após aprovação:
-        GEMINI_IMAGE_SIZE = "2K"
-    """
+    """Gera uma única fotografia usando a API Gemini documentada."""
 
     if not GEMINI_API_KEY:
-        raise ValueError(
-            "GEMINI_API_KEY não configurada."
-        )
+        raise ValueError("GEMINI_API_KEY não configurada.")
 
     payload = {
-        "model": GEMINI_IMAGE_MODEL,
-        "input": [
+        "contents": [
             {
-                "type": "text",
-                "text": prompt_final,
+                "parts": [
+                    {"text": prompt_final}
+                ]
             }
         ],
-        "response_format": {
-            "type": "image",
-            "mime_type": "image/jpeg",
-            "aspect_ratio": "3:4",
-            "image_size": image_size,
+        "generationConfig": {
+            "responseModalities": ["IMAGE"],
+            "imageConfig": {
+                "aspectRatio": "4:5",
+                "imageSize": image_size,
+            },
         },
     }
 
     url = (
-        f"{GEMINI_API_BASE}/interactions"
+        f"{GEMINI_API_BASE}/models/"
+        f"{GEMINI_IMAGE_MODEL}:generateContent"
     )
-
-    headers = {
-        "x-goog-api-key": GEMINI_API_KEY,
-        "Content-Type": "application/json",
-    }
 
     resposta = requests.post(
         url,
-        headers=headers,
+        headers={
+            "x-goog-api-key": GEMINI_API_KEY,
+            "Content-Type": "application/json",
+        },
         json=payload,
         timeout=180,
     )
@@ -1611,96 +1465,36 @@ def _gerar_imagem_gemini(
     except Exception:
         dados = {"raw": resposta.text}
 
-    if resposta.status_code not in (200, 201, 202):
+    if resposta.status_code != 200:
         detalhe = dados.get("error", dados)
         raise RuntimeError(
-            "Gemini Image: "
-            f"HTTP {resposta.status_code}: {detalhe}"
+            f"Gemini Image: HTTP {resposta.status_code}: {detalhe}"
         )
 
-    status = dados.get("status")
-
-    if status in (None, "completed"):
-        return _extrair_imagem_interaction(dados)
-
-    if status in ("failed", "cancelled", "incomplete"):
-        raise RuntimeError(
-            "Gemini Image não concluiu a geração: "
-            f"{dados.get('error') or dados}"
-        )
-
-    # Polling para o caso de a API devolver in_progress.
-    interaction_id = dados.get("id")
-
-    if not interaction_id:
-        raise RuntimeError(
-            f"Gemini Image retornou status '{status}' sem ID."
-        )
-
-    import time
-
-    url_consulta = (
-        f"{GEMINI_API_BASE}/interactions/"
-        f"{interaction_id}"
-        f"?key={GEMINI_API_KEY}"
-    )
-
-    limite = time.time() + 180
-
-    while time.time() < limite:
-
-        time.sleep(2)
-
-        consulta = requests.get(
-            url_consulta,
-            headers={
-                "x-goog-api-key": GEMINI_API_KEY,
-            },
-            timeout=60,
-        )
-
-        try:
-            dados = consulta.json()
-        except Exception:
-            dados = {"raw": consulta.text}
-
-        if consulta.status_code != 200:
-            detalhe = dados.get("error", dados)
-            raise RuntimeError(
-                "Gemini Image: erro ao consultar interação: "
-                f"HTTP {consulta.status_code}: {detalhe}"
-            )
-
-        status = dados.get("status")
-
-        if status == "completed":
-            return _extrair_imagem_interaction(dados)
-
-        if status in ("failed", "cancelled", "incomplete"):
-            raise RuntimeError(
-                "Gemini Image não concluiu a geração: "
-                f"{dados.get('error') or dados}"
-            )
-
-    raise TimeoutError(
-        "Gemini Image: tempo limite excedido."
-    )
+    return _extrair_imagem_generate_content(dados)
 
 
 def gerar_fundo_ideogram(
     prompt_visual: str,
     direcao_visual: str = "",
+    ideia: str = "",
+    produto: str = "",
+    sujeito_visual: str = "",
+    acao_visual: str = "",
+    ambiente_visual: str = "",
+    enquadramento_visual: str = "",
 ):
-    """
-    Nome histórico mantido para não quebrar o restante do app.
-
-    Agora a geração é feita 100% pela Gemini,
-    sem Replicate e sem Imagen.
-    """
+    """Nome histórico preservado; agora gera 100% via Gemini."""
 
     prompt_final = construir_prompt_visual(
         prompt_visual,
         direcao_visual,
+        ideia,
+        produto,
+        sujeito_visual,
+        acao_visual,
+        ambiente_visual,
+        enquadramento_visual,
     )
 
     return _gerar_imagem_gemini(
@@ -3098,8 +2892,7 @@ elif (
 
         with st.spinner(
 
-            "Gerando fotografia e "
-            "composição Vértice..."
+            "Gerando fotografia Vértice..."
 
         ):
 
@@ -3141,6 +2934,24 @@ Clean dark-blue negative space on the left.
                     gerar_fundo_ideogram(
                         prompt_visual,
                         direcao_visual,
+                        ideia=st.session_state.ideia_escolhida,
+                        produto=st.session_state.produto,
+                        sujeito_visual=pagina.get(
+                            "sujeito_visual",
+                            "",
+                        ),
+                        acao_visual=pagina.get(
+                            "acao_visual",
+                            "",
+                        ),
+                        ambiente_visual=pagina.get(
+                            "ambiente_visual",
+                            "",
+                        ),
+                        enquadramento_visual=pagina.get(
+                            "enquadramento_visual",
+                            "",
+                        ),
                     )
                 )
 
