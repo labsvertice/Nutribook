@@ -1584,7 +1584,7 @@ def _gerar_imagem_gemini(
         ],
         "response_format": {
             "type": "image",
-            "mime_type": "image/png",
+            "mime_type": "image/jpeg",
             "aspect_ratio": "3:4",
             "image_size": image_size,
         },
