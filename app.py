@@ -128,7 +128,7 @@ def limpar_rascunho_exibicao(texto: str) -> str:
 def gerar_ideias_gemini(api_key: str, base_conhecimento: str) -> list:
   genai.configure(api_key=api_key)
   model = genai.GenerativeModel(
-      "gemini-2.5-flash", generation_config={"temperature": 0.95}
+      "gemini-1.5-pro", generation_config={"temperature": 0.95}
   )
   prompt = (
       f"Estrategista Jean Victor. Base: {base_conhecimento}. Seed: {time.time()}."
@@ -145,10 +145,14 @@ def gerar_ideias_gemini(api_key: str, base_conhecimento: str) -> list:
 
 @st.cache_data(show_spinner=False)
 def gerar_estrutura_gemini(
-    api_key: str, ideia: str, formato: str, paginas: int, base_conhecimento: str
+    api_key: str,
+    ideia: str,
+    formato: str,
+    paginas: int,
+    base_conhecimento: str,
 ) -> str:
   genai.configure(api_key=api_key)
-  model = genai.GenerativeModel("gemini-2.5-flash")
+  model = genai.GenerativeModel("gemini-1.5-pro")
 
   prompt = f"""
     Você é o estrategista de copy do Jean Victor.
@@ -158,9 +162,11 @@ def gerar_estrutura_gemini(
     BASE DE CONHECIMENTO DO PRODUTO:
     {base_conhecimento}
     
-    REGRAS DA LEGENDA:
-    1. MÁXIMO DE 4 A 7 PALAVRAS POR LINHA.
-    2. CADA FRASE EM UMA LINHA ISOLADA.
+    REGRAS OBRIGATÓRIAS DA LEGENDA:
+    1. LEGENDA CURTA E OBJETIVA (evite blocos longos de texto).
+    2. No máximo 4 a 7 palavras por linha.
+    3. Cada frase deve ficar em uma linha isolada.
+    4. NUNCA inclua bordões, slogans fixos ou frases repetitivas ao final. Termine com uma Chamada para Ação (CTA) direta e natural para o conteúdo.
 
     ESTRUTURA DE SAÍDA:
 
@@ -169,7 +175,7 @@ def gerar_estrutura_gemini(
     [Escreva a frase principal provocativa em caixa alta, curta e de alto impacto]
 
     📌 **LEGENDA DO POST**
-    [Legenda em linhas curtas e encerramento oficial]
+    [Legenda curta em linhas isoladas com CTA final natural]
     """
   res = model.generate_content(prompt)
   return res.text
@@ -308,7 +314,6 @@ else:
           "Google Imagen 3 gerando fotografia corporativa de alta resolução..."
       ):
         try:
-          # Prompt fotográfico realista e limpo sem texto distorcido
           prompt_imagem = (
               "A high-end, realistic editorial photograph of a dark navy blue"
               " executive boardroom, modern luxury furniture, subtle yellow"
