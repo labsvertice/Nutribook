@@ -6,11 +6,14 @@ from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
-# ID da pasta de entrada para upload dos PDFs base (mesmo ID definido no seu Apps Script)
+# ID da pasta de entrada para upload dos PDFs base
 PASTA_ENTRADAS_ID = '11Pv3PC3X6LpCj4Lg4W1-M7x6KEYERIjBiTSbUyZbxnkvFWHF4nk8Q5KWiOpX7c9NibA2pssC'
 
+# VALOR UNITÁRIO PARA CÁLCULO DE FATURAMENTO (Ajuste conforme o preço comercializado)
+VALOR_NUTRIBOOK = 35.00  
+
 # =================================================================================
-# 1. CONFIGURAÇÃO DA PÁGINA E CSS (REMOCIONAL DE ESPAÇO NO TOPO)
+# 1. CONFIGURAÇÃO DA PÁGINA E CSS (MARGEM SUPERIOR AJUSTADA)
 # =================================================================================
 st.set_page_config(
     page_title="Nutribook — Portal do Consultório",
@@ -26,7 +29,7 @@ st.markdown("""
         background-color: #E2E8E2 !important;
     }
 
-    /* Remove o espaço em branco gigante do topo */
+    /* Redução da margem do topo */
     header[data-testid="stHeader"] {
         background: transparent !important;
         height: 1.5rem !important;
@@ -78,7 +81,7 @@ st.markdown("""
 # =================================================================================
 
 def upload_pdf_para_google_drive(uploaded_file, folder_id):
-    """Envia o arquivo PDF diretamente para a pasta do Google Drive."""
+    """Envia o arquivo PDF para a pasta do Google Drive."""
     try:
         creds_dict = dict(st.secrets["connections"]["gsheets"])
         if "private_key" in creds_dict:
@@ -107,7 +110,7 @@ def upload_pdf_para_google_drive(uploaded_file, folder_id):
 
         return arquivo_drive.get('webViewLink')
     except Exception as e:
-        st.error(f"Erro ao fazer upload do arquivo para o Google Drive: {e}")
+        st.error(f"Erro no upload para o Google Drive: {e}")
         return None
 
 # Conexão com o Google Sheets
@@ -184,11 +187,9 @@ if menu == "➕ Novo Nutribook":
         if submitted:
             if nome_paciente and pdf_file:
                 with st.spinner("Enviando arquivo e registrando pedido..."):
-                    # 1. Faz upload do PDF para o Google Drive
                     drive_url = upload_pdf_para_google_drive(pdf_file, PASTA_ENTRADAS_ID)
                     
                     if drive_url:
-                        # 2. Prepara os dados para a planilha
                         data_registro = pd.Timestamp.now().strftime("%d/%m/%Y %H:%M")
                         protocolos_str = ", ".join(protocolos_selecionados) if protocolos_selecionados else "Padrão"
                         
@@ -203,36 +204,104 @@ if menu == "➕ Novo Nutribook":
                             "Status": "Pendente"
                         }])
                         
-                        # 3. Lê o histórico e concatena a nova linha
                         df_atual = conn.read()
                         if df_atual is not None and not df_atual.empty:
                             df_atualizado = pd.concat([df_atual, novo_registro], ignore_index=True)
                         else:
                             df_atualizado = novo_registro
                         
-                        # 4. Atualiza a planilha
                         conn.update(data=df_atualizado)
-                        
-                        st.success(f"✅ Nutribook para **{nome_paciente}** registrado com sucesso! O robô processará e enviará por e-mail em instantes.")
+                        st.success(f"✅ Nutribook para **{nome_paciente}** registrado com sucesso!")
             else:
                 st.error("Por favor, preencha o Nome do Paciente e selecione um arquivo PDF.")
 
 # --- ABA 2: PAINEL NUTRIBOOK ---
 elif menu == "📋 Painel Nutribook":
     st.title("🍎 Painel Nutribook")
-    st.write("Acompanhe o status de geração dos PDFs e acesse os links entregues aos pacientes.")
+    st.write("Acompanhe os indicadores de geração, faturamento e histórico completo.")
     
     st.divider()
     
     df_dados = carregar_dados_planilha()
     
     if df_dados is not None and not df_dados.empty:
-        col1, col2 = st.columns(2)
-        with col1:
-            total_concluidos = len(df_dados[df_dados['Status'] == 'Concluído']) if 'Status' in df_dados.columns else 0
-            st.metric(label="Nutribooks Concluídos", value=total_concluidos)
+        # Mapeamento dinâmico de colunas
+        col_status = "Status" if "Status" in df_dados.columns else df_dados.columns[-1]
+        col_data = "Carimbo de data/hora" if "Carimbo de data/hora" in df_dados.columns else df_dados.columns[0]
         
-        st.write("### **Histórico de Pedidos**")
-        st.dataframe(df_dados, use_container_width=True, hide_index=True)
+        # Tratamento das datas para análise temporal
+        df_dados['Data_Parsed'] = pd.to_datetime(df_dados[col_data], dayfirst=True, errors='coerce')
+        
+        # FILTRO EXCLUSIVO: Apenas registros com status "Concluído"
+        df_concluidos = df_dados[df_dados[col_status].astype(str).str.strip().str.lower() == 'concluído']
+        
+        # Cálculos de Métricas
+        total_historico = len(df_concluidos)
+        
+        agora = pd.Timestamp.now()
+        df_mes_atual = df_concluidos[
+            (df_concluidos['Data_Parsed'].dt.month == agora.month) & 
+            (df_concluidos['Data_Parsed'].dt.year == agora.year)
+        ]
+        total_mes = len(df_mes_atual)
+        
+        faturamento_mes = total_mes * VALOR_NUTRIBOOK
+        faturamento_total = total_historico * VALOR_NUTRIBOOK
+
+        # Exibição dos KPIs em Cards
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        
+        with kpi1:
+            st.metric(label="Total Concluídos (Geral)", value=f"{total_historico}")
+        with kpi2:
+            st.metric(label="Concluídos no Mês", value=f"{total_mes}")
+        with kpi3:
+            st.metric(label="Faturamento Mês Atual", value=f"R$ {faturamento_mes:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        with kpi4:
+            st.metric(label="Faturamento Acumulado", value=f"R$ {faturamento_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+
+        st.markdown("---")
+
+        # Gráfico Mês a Mês
+        st.subheader("📈 Evolução Mensal (Nutribooks Concluídos)")
+        if not df_concluidos.empty and df_concluidos['Data_Parsed'].notna().any():
+            df_grafico = (
+                df_concluidos.dropna(subset=['Data_Parsed'])
+                .groupby(df_concluidos['Data_Parsed'].dt.to_period('M'))
+                .size()
+                .reset_index(name='Quantidade')
+            )
+            df_grafico['Mês/Ano'] = df_grafico['Data_Parsed'].astype(str)
+            df_grafico = df_grafico.set_index('Mês/Ano')[['Quantidade']]
+            
+            st.bar_chart(df_grafico, height=260)
+        else:
+            st.caption("Aguardando mais registros concluídos para exibição do gráfico.")
+
+        st.markdown("---")
+
+        # Tabela Detalhada do Histórico
+        st.subheader("📋 Histórico de Pedidos")
+        
+        status_unicos = list(df_dados[col_status].dropna().unique())
+        status_filtro = st.selectbox("Filtrar por Status na Tabela:", ["Todos"] + status_unicos)
+        
+        df_exibicao = df_dados.copy()
+        if status_filtro != "Todos":
+            df_exibicao = df_exibicao[df_exibicao[col_status] == status_filtro]
+
+        # Oculta colunas auxiliares no painel
+        if 'Data_Parsed' in df_exibicao.columns:
+            df_exibicao = df_exibicao.drop(columns=['Data_Parsed'])
+
+        st.dataframe(
+            df_exibicao,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Link Nutribook": st.column_config.LinkColumn("Link Nutribook", display_text="🔗 Abrir PDF"),
+                "Upload do Plano Alimentar Base": st.column_config.LinkColumn("Plano Base", display_text="📄 Ver Base")
+            }
+        )
     else:
-        st.info("Nenhum dado encontrado ou aguardando conexão com o Google Sheets.")
+        st.info("Nenhum dado encontrado na planilha do Google Sheets.")
