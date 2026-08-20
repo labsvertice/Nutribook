@@ -10,12 +10,17 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Estilização CSS Personalizada (Paleta Creme, Azul Marinho e Dourado)
+# 2. Estilização CSS Personalizada (Verde Nutri + Sálvia)
 st.markdown("""
     <style>
-    /* Estilo dos Botões Principais */
+    /* Estilo do Fundo e Aplicação Geral */
+    .stApp {
+        background-color: #F3F6F3 !important;
+    }
+
+    /* Botões Principais */
     div.stButton > button, div.stFormSubmitButton > button {
-        background-color: #C4922B !important;
+        background-color: #2A5C36 !important;
         color: #FFFFFF !important;
         font-weight: bold !important;
         border-radius: 8px !important;
@@ -26,21 +31,21 @@ st.markdown("""
     }
     
     div.stButton > button:hover, div.stFormSubmitButton > button:hover {
-        background-color: #A3771F !important;
+        background-color: #1E4327 !important;
         color: #FFFFFF !important;
-        box-shadow: 0 4px 12px rgba(196, 146, 43, 0.3) !important;
+        box-shadow: 0 4px 12px rgba(42, 92, 54, 0.25) !important;
     }
 
-    /* Títulos em Azul Marinho Profundo */
+    /* Títulos principais em tom escuro botânico */
     h1, h2, h3 {
-        color: #0B192C !important;
+        color: #16281A !important;
         font-weight: 700 !important;
     }
 
-    /* Estilização da Sidebar */
+    /* Sidebar */
     [data-testid="stSidebar"] {
-        background-color: #F0F2F6 !important;
-        border-right: 1px solid #E2E8F0;
+        background-color: #E3EAE2 !important;
+        border-right: 1px solid #D2DDD0;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -71,7 +76,7 @@ df_dados = carregar_dados()
 
 # --- ABA 1: PAINEL DE ACOMPANHAMENTO ---
 if menu == "📋 Painel de Solicitações":
-    st.title("🍎 Painel do Consultório")
+    st.title("🍎 Painel Nutribook")
     st.write("Acompanhe o status de geração dos PDFs e acesse os links entregues aos pacientes.")
     
     st.divider()
