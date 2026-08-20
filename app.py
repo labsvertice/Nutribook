@@ -88,6 +88,8 @@ if menu == "➕ Novo Nutribook":
             email_paciente = st.text_input("E-mail do Paciente")
         
         st.subheader("Perfis / Protocolos do Paciente")
+        st.caption("Marque todas as opções aplicáveis:")
+        
         lista_protocolos = [
             "Fertilidade Feminina",
             "Fertilidade Masculina",
@@ -101,10 +103,12 @@ if menu == "➕ Novo Nutribook":
             "Niquel",
             "Referência Geral"
         ]
-        protocolos_selecionados = st.multiselect(
-            "Selecione um ou mais protocolos aplicáveis ao caso:",
-            options=lista_protocolos
-        )
+        
+        # Criação das caixas de seleção individuais (estilo Google Forms)
+        protocolos_selecionados = []
+        for protocolo in lista_protocolos:
+            if st.checkbox(protocolo, key=protocolo):
+                protocolos_selecionados.append(protocolo)
         
         st.subheader("Plano Alimentar Base")
         pdf_file = st.file_uploader("Upload do Plano Alimentar Base (PDF):", type=["pdf"])
@@ -113,7 +117,7 @@ if menu == "➕ Novo Nutribook":
         
         if submitted:
             if nome_paciente and pdf_file:
-                st.success(f"Solicitação criada com sucesso para **{nome_paciente}**! O Nutribook está sendo processado.")
+                st.success(f"Solicitação criada com sucesso para **{nome_paciente}**! Protocolos selecionados: {len(protocolos_selecionados)}.")
             else:
                 st.error("Por favor, preencha o Nome do Paciente e faça o upload do arquivo PDF.")
 
