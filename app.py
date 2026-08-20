@@ -3,8 +3,7 @@ import io
 import os
 import time
 import google.generativeai as genai
-import replicate
-import requests
+from PIL import Image
 import streamlit as st
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
@@ -103,12 +102,10 @@ with col_titulo:
 
 st.write("---")
 
-# --- CHAVES DE API DO STREAMLIT SECRETS ---
+# --- CONFIGURAÇÃO DA CHAVE GOOGLE API ---
 GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY", "")
-REPLICATE_API_TOKEN = st.secrets.get("REPLICATE_API_TOKEN", "")
-
-if REPLICATE_API_TOKEN:
-  os.environ["REPLICATE_API_TOKEN"] = REPLICATE_API_TOKEN
+if GEMINI_API_KEY:
+  genai.configure(api_key=GEMINI_API_KEY)
 
 
 def limpar_rascunho_exibicao(texto: str) -> str:
@@ -116,7 +113,7 @@ def limpar_rascunho_exibicao(texto: str) -> str:
   resultado = []
   ignorar = False
   for linha in linhas:
-    if "PROMPT VISUAL IDEOGRAM" in linha.upper():
+    if "PROMPT VISUAL" in linha.upper():
       ignorar = True
       continue
     if ignorar and (
@@ -131,7 +128,7 @@ def limpar_rascunho_exibicao(texto: str) -> str:
 def gerar_ideias_gemini(api_key: str, base_conhecimento: str) -> list:
   genai.configure(api_key=api_key)
   model = genai.GenerativeModel(
-      "gemini-3.5-flash-lite", generation_config={"temperature": 0.95}
+      "gemini-2.5-flash", generation_config={"temperature": 0.95}
   )
   prompt = (
       f"Estrategista Jean Victor. Base: {base_conhecimento}. Seed: {time.time()}."
@@ -151,7 +148,7 @@ def gerar_estrutura_gemini(
     api_key: str, ideia: str, formato: str, paginas: int, base_conhecimento: str
 ) -> str:
   genai.configure(api_key=api_key)
-  model = genai.GenerativeModel("gemini-3.5-flash-lite")
+  model = genai.GenerativeModel("gemini-2.5-flash")
 
   prompt = f"""
     Você é o estrategista de copy do Jean Victor.
@@ -167,12 +164,9 @@ def gerar_estrutura_gemini(
 
     ESTRUTURA DE SAÍDA:
 
-    📌 **TEXTO DA ARTE / CARROSSEL**
+    📌 **TEXTO DA ARTE / CAPA**
     HEADLINE CAPA:
     [Escreva a frase principal provocativa em caixa alta, curta e de alto impacto]
-
-    PROMPT VISUAL IDEOGRAM:
-    [Descreva uma cena corporativa realista em inglês. Indique o texto exato da headline entre aspas duplas no topo. Exemplo: 'A high quality realistic photograph of a modern executive boardroom. Clear bold text at the top reading "[HEADLINE]". Dark navy blue atmosphere, photorealistic, 8k.']
 
     📌 **LEGENDA DO POST**
     [Legenda em linhas curtas e encerramento oficial]
@@ -228,7 +222,7 @@ if st.session_state.formato is None:
   st.subheader("Olá Jean Victor! O que vamos criar hoje?")
   fmt = st.radio(
       "Selecione o formato:",
-      ["Post Único (4:5)", "Carrossel (4:5)", "Reels (Apenas Roteiro)"],
+      ["Post Único (3:4)", "Carrossel (3:4)", "Reels (Apenas Roteiro)"],
   )
   if st.button("Confirmar Formato"):
     st.session_state.formato = fmt
@@ -250,7 +244,7 @@ else:
         "Como deseja prosseguir?",
         ["1️⃣ Já tenho ideia", "2️⃣ Quero ideias estratégicas"],
     )
-    paginas = 5 if st.session_state.formato == "Carrossel (4:5)" else 1
+    paginas = 5 if "Carrossel" in st.session_state.formato else 1
     if st.button("Avançar para Ideação"):
       st.session_state.opcao_ideia = op
       st.session_state.num_paginas = paginas
@@ -298,7 +292,7 @@ else:
 
     col1, col2 = st.columns(2)
     with col1:
-      if st.button("✅ Aprovar e Gerar Arte"):
+      if st.button("✅ Aprovar e Gerar Foto de Fundo"):
         st.session_state.etapa = 8
         st.rerun()
     with col2:
@@ -307,68 +301,52 @@ else:
         st.rerun()
 
   elif st.session_state.etapa == 8:
-    st.subheader("ETAPA 8: Renderização Publicitária Ideogram 4.0 (3:4)")
+    st.subheader("ETAPA 8: Fotografia de Fundo Premium (Google Imagen 3)")
 
     if not st.session_state.imagem_processada_bytes:
       with st.spinner(
-          "Ideogram v2 gerando arte publicitária com headline integrada..."
+          "Google Imagen 3 gerando fotografia corporativa de alta resolução..."
       ):
         try:
-          # 1. Extrai a headline e limita a no máximo 5 palavras para garantir ortografia perfeita
-          headline_texto = "DADOS SEM ESTRATÉGIA"
-          if st.session_state.estrutura_rascunho:
-            for line in st.session_state.estrutura_rascunho.split("\n"):
-              if "HEADLINE CAPA" in line.upper():
-                partes = line.split(":")
-                if len(partes) > 1 and partes[1].strip():
-                  headline_texto = partes[1].strip().upper()
-                  break
-
-          # Garante no máximo 5 palavras na capa
-          palavras = headline_texto.replace('"', "").split()[:5]
-          headline_curta = " ".join(palavras)
-
-          # 2. Prompt limpo (sem termos como 8k/photorealistic que poluem o texto)
-          prompt_ideogram = (
-              "A high-end corporate advertisement. A dark navy blue executive"
-              " boardroom in the background with cinematic lighting. Bold text"
-              f' reading "{headline_curta}" in clean yellow typography at the'
-              " top."
+          # Prompt fotográfico realista e limpo sem texto distorcido
+          prompt_imagem = (
+              "A high-end, realistic editorial photograph of a dark navy blue"
+              " executive boardroom, modern luxury furniture, subtle yellow"
+              " ambient lighting, cinematic focus, ultra detailed, minimalist"
+              " luxury atmosphere, no text, 35mm photograph."
           )
 
-          # 3. Geração via Ideogram v2 no formato 3:4
-          output = replicate.run(
-              "ideogram-ai/ideogram-v2",
-              input={
-                  "prompt": prompt_ideogram,
-                  "aspect_ratio": "3:4",
-                  "style_type": "Realistic",
-                  "magic_prompt_option": "Auto",
-              },
+          imagen_model = genai.ImageGenerationModel("imagen-3.0-generate-002")
+          result = imagen_model.generate_images(
+              prompt=prompt_imagem,
+              number_of_images=1,
+              aspect_ratio="3:4",
+              output_mime_type="image/png",
           )
 
-          image_url = str(output[0]) if isinstance(output, list) else str(output)
-          image_bytes = requests.get(image_url).content
+          pil_img = result.images[0]._pil_image
+          buf = io.BytesIO()
+          pil_img.save(buf, format="PNG")
 
-          st.session_state.imagem_processada_bytes = image_bytes
+          st.session_state.imagem_processada_bytes = buf.getvalue()
           st.rerun()
 
         except Exception as err:
-          st.error(f"Erro na geração da imagem: {err}")
+          st.error(f"Erro na geração com Imagen 3: {err}")
 
     if st.session_state.imagem_processada_bytes:
       col_esq, col_centro, col_dir = st.columns([0.5, 2, 0.5])
       with col_centro:
         st.image(
             st.session_state.imagem_processada_bytes,
-            caption="Arte Publicitária Pronta para Publicação",
+            caption="Fotografia Corporativa Base (Google Imagen 3)",
             use_container_width=True,
         )
 
       st.download_button(
-          label="📥 Baixar Arte Final Pronta (PNG 3:4 Alta Resolução)",
+          label="📥 Baixar Imagem HD (PNG 3:4)",
           data=st.session_state.imagem_processada_bytes,
-          file_name="vertice_arte_final.png",
+          file_name="vertice_imagem_fundo.png",
           mime="image/png",
       )
 
