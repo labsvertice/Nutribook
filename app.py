@@ -4,18 +4,18 @@ from streamlit_gsheets import GSheetsConnection
 
 # 1. Configuração Inicial da Página
 st.set_page_config(
-    page_title="Nutribook AI — Portal do Consultório",
+    page_title="Nutribook — Portal do Consultório",
     page_icon="🍎",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# 2. Estilização CSS Personalizada (Verde Nutri + Sálvia)
+# 2. Estilização CSS Personalizada (Sem Fundo Branco)
 st.markdown("""
     <style>
-    /* Estilo do Fundo e Aplicação Geral */
+    /* Cor de fundo geral da aplicação */
     .stApp {
-        background-color: #F3F6F3 !important;
+        background-color: #E2E8E2 !important;
     }
 
     /* Botões Principais */
@@ -36,16 +36,16 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(42, 92, 54, 0.25) !important;
     }
 
-    /* Títulos principais em tom escuro botânico */
+    /* Títulos em tom verde escuro */
     h1, h2, h3 {
-        color: #16281A !important;
+        color: #112214 !important;
         font-weight: 700 !important;
     }
 
-    /* Sidebar */
+    /* Estilo da barra lateral */
     [data-testid="stSidebar"] {
-        background-color: #E3EAE2 !important;
-        border-right: 1px solid #D2DDD0;
+        background-color: #D3DDD3 !important;
+        border-right: 1px solid #C1CDC1;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -53,18 +53,19 @@ st.markdown("""
 # 3. Sidebar / Menu Lateral
 with st.sidebar:
     st.image("logo.png", width=160)
-    st.markdown("## **Nutribook AI**")
-    st.caption("Documento Único • Nutrição de Alta Performance")
+    st.markdown("## **Nutribook**")
+    st.caption("Plataforma Nutricional de Alta Performance")
     
     st.divider()
     
+    # Ordem alterada: Formulário primeiro, Painel em segundo
     menu = st.radio(
         "Navegação do Consultório:",
-        ["📋 Painel de Solicitações", "➕ Criar Novo Nutribook"],
+        ["➕ Criar Novo Nutribook", "📋 Painel Nutribook"],
         index=0
     )
 
-# 4. Conexão com a Planilha Google (Google Sheets)
+# 4. Conexão com o Google Sheets
 def carregar_dados():
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -74,8 +75,32 @@ def carregar_dados():
 
 df_dados = carregar_dados()
 
-# --- ABA 1: PAINEL DE ACOMPANHAMENTO ---
-if menu == "📋 Painel de Solicitações":
+# --- ABA 1: CRIAR NOVO NUTRIBOOK (Primeira opção) ---
+if menu == "➕ Criar Novo Nutribook":
+    st.title("📄 Registro de Consulta")
+    st.write("Preencha as informações do paciente e anexe o plano em PDF para disparar a geração.")
+    
+    with st.form("form_nutribook"):
+        st.subheader("Dados do Paciente")
+        nome_paciente = st.text_input("Nome Completo do Paciente:")
+        perfil_clinico = st.text_area(
+            "Anotações da Sessão / Conduta Clínica:", 
+            help="Orientações e perfil do paciente que devem ser considerados na personalização."
+        )
+        
+        st.subheader("Plano Alimentar")
+        pdf_file = st.file_uploader("Upload do Arquivo PDF:", type=["pdf"])
+        
+        submitted = st.form_submit_button("CRIAR NUTRIBOOK")
+        
+        if submitted:
+            if nome_paciente and pdf_file:
+                st.success(f"Solicitação criada com sucesso para **{nome_paciente}**! O Nutribook está sendo processado.")
+            else:
+                st.error("Por favor, preencha o nome do paciente e faça o upload do arquivo PDF.")
+
+# --- ABA 2: PAINEL NUTRIBOOK (Segunda opção) ---
+elif menu == "📋 Painel Nutribook":
     st.title("🍎 Painel Nutribook")
     st.write("Acompanhe o status de geração dos PDFs e acesse os links entregues aos pacientes.")
     
@@ -91,24 +116,3 @@ if menu == "📋 Painel de Solicitações":
         st.dataframe(df_dados, use_container_width=True, hide_index=True)
     else:
         st.info("Nenhum dado encontrado ou aguardando conexão com o Google Sheets.")
-
-# --- ABA 2: CRIAR NOVO NUTRIBOOK ---
-elif menu == "➕ Criar Novo Nutribook":
-    st.title("📄 Registro de Consulta")
-    st.write("Preencha as informações do paciente e anexe o plano em PDF para disparar a geração.")
-    
-    with st.form("form_nutribook"):
-        st.subheader("Dados do Paciente")
-        nome_paciente = st.text_input("Nome Completo do Paciente:")
-        perfil_clinico = st.text_area("Anotações da Sessão / Conduta Clinica:", help="Orientações e perfil do paciente que a IA deve considerar.")
-        
-        st.subheader("Plano Alimentar")
-        pdf_file = st.file_uploader("Upload do Arquivo PDF:", type=["pdf"])
-        
-        submitted = st.form_submit_button("CRIAR NUTRIBOOK")
-        
-        if submitted:
-            if nome_paciente and pdf_file:
-                st.success(f"Solicitação criada com sucesso para **{nome_paciente}**! O Nutribook está sendo processado.")
-            else:
-                st.error("Por favor, preencha o nome do paciente e faça o upload do arquivo PDF.")
