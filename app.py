@@ -10,12 +10,27 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Estilização CSS Personalizada (Tom Verde Sálvia Aconchegante)
+# 2. Estilização CSS Personalizada (Sem Espaços Vazio no Topo)
 st.markdown("""
     <style>
     /* Cor de fundo geral */
     .stApp {
         background-color: #E2E8E2 !important;
+    }
+
+    /* Redução do cabeçalho invisível e padding superior */
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+        height: 2rem !important;
+    }
+    
+    .main .block-container {
+        padding-top: 1.5rem !important;
+        padding-bottom: 2rem !important;
+    }
+
+    [data-testid="stSidebarContent"] {
+        padding-top: 1.5rem !important;
     }
 
     /* Botões Principais */
@@ -36,7 +51,7 @@ st.markdown("""
         box-shadow: 0 4px 12px rgba(42, 92, 54, 0.25) !important;
     }
 
-    /* Títulos principais em tom verde escuro */
+    /* Títulos principais */
     h1, h2, h3 {
         color: #112214 !important;
         font-weight: 700 !important;
@@ -54,8 +69,7 @@ st.markdown("""
 with st.sidebar:
     st.image("logo.png", width=160)
     
-    # Mensagem de Boas-vindas Personalizada
-    nome_nutri = "Jean Victor"  # Pode vir de uma autenticação/parâmetro no futuro
+    nome_nutri = "Jean Victor"
     st.markdown(f"#### Olá, **{nome_nutri}**! 👋")
     st.caption("Vamos iniciar o próximo Nutribook?")
     
