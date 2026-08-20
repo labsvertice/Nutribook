@@ -307,16 +307,15 @@ else:
         st.rerun()
 
   elif st.session_state.etapa == 8:
-    st.subheader("ETAPA 8: Renderização Publicitária Ideogram 4.0 (4:5)")
+    st.subheader("ETAPA 8: Renderização Publicitária Ideogram 4.0 (3:4)")
 
     if not st.session_state.imagem_processada_bytes:
       with st.spinner(
-          "Ideogram v2 gerando arte publicitária hiper-realista com texto"
-          " integrado..."
+          "Ideogram v2 gerando arte publicitária com headline integrada..."
       ):
         try:
-          # Extrai a headline da estrutura gerada
-          headline_texto = st.session_state.ideia_escolhida.upper()
+          # 1. Extrai a headline e limita a no máximo 5 palavras para garantir ortografia perfeita
+          headline_texto = "DADOS SEM ESTRATÉGIA"
           if st.session_state.estrutura_rascunho:
             for line in st.session_state.estrutura_rascunho.split("\n"):
               if "HEADLINE CAPA" in line.upper():
@@ -325,17 +324,19 @@ else:
                   headline_texto = partes[1].strip().upper()
                   break
 
-          # Prompt otimizado para Ideogram v2 (Texto Nativo Integrado)
+          # Garante no máximo 5 palavras na capa
+          palavras = headline_texto.replace('"', "").split()[:5]
+          headline_curta = " ".join(palavras)
+
+          # 2. Prompt limpo (sem termos como 8k/photorealistic que poluem o texto)
           prompt_ideogram = (
-              'A professional corporate advertisement for a premium data and'
-              " leadership platform. Large bold typography reading"
-              f' "{headline_texto}" at the top in bright yellow text. Background'
-              " features a realistic photograph of an executive boardroom,"
-              " modern lighting, dark navy blue atmosphere, photorealistic,"
-              " shot on 35mm lens, 8k"
+              "A high-end corporate advertisement. A dark navy blue executive"
+              " boardroom in the background with cinematic lighting. Bold text"
+              f' reading "{headline_curta}" in clean yellow typography at the'
+              " top."
           )
 
-          # Chamada direta para o Ideogram v2 em formato 4:5
+          # 3. Geração via Ideogram v2 no formato 3:4
           output = replicate.run(
               "ideogram-ai/ideogram-v2",
               input={
@@ -360,12 +361,12 @@ else:
       with col_centro:
         st.image(
             st.session_state.imagem_processada_bytes,
-            caption="Arte Publicitária Pronta para Publicação (Ideogram 4.0)",
+            caption="Arte Publicitária Pronta para Publicação",
             use_container_width=True,
         )
 
       st.download_button(
-          label="📥 Baixar Arte Final Pronta (PNG 4:5 Alta Resolução)",
+          label="📥 Baixar Arte Final Pronta (PNG 3:4 Alta Resolução)",
           data=st.session_state.imagem_processada_bytes,
           file_name="vertice_arte_final.png",
           mime="image/png",
