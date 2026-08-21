@@ -21,20 +21,20 @@ st.markdown("""
     <style>
     .stApp { background-color: #E2E8E2 !important; }
     
-    /* Oculta a barra do topo e elimina o espaço em branco superior */
+    /* Oculta o cabeçalho padrão mantendo o espaço do topo equilibrado */
     header[data-testid="stHeader"], [data-testid="stHeader"], header {
         display: none !important;
         height: 0px !important;
     }
     
     .main .block-container, [data-testid="stMainBlockContainer"] {
-        padding-top: 1rem !important;
-        margin-top: -3.5rem !important;
+        padding-top: 2rem !important;
+        margin-top: -1.5rem !important;
         padding-bottom: 2rem !important;
     }
     
     [data-testid="stSidebarContent"] {
-        padding-top: 1rem !important;
+        padding-top: 2rem !important;
     }
 
     div.stButton > button, div.stFormSubmitButton > button {
