@@ -91,13 +91,33 @@ if menu == "➕ Novo Nutribook":
         
         st.subheader("Perfis / Protocolos do Paciente")
         lista_protocolos = [
-            "Fertilidade Feminina", "Fertilidade Masculina", "FODMAPs Orientações Gerais",
-            "FODMAPs Guia e Fases", "FODMAPs Tabela Completa", "Gestação",
-            "Gestação - Diabetes Gestacional", "Histamina - Tabela", "Lactante",
-            "Niquel", "Referência Geral"
+            "Fertilidade Feminina",
+            "Emagrecimento & Definição",
+            "Hipertrofia & Ganho de Massa",
+            "Reeducação Alimentar & Saúde Geral",
+            "Saúde Intestinal (Disbiose / FODMAPs)",
+            "Saúde da Mulher (SOP / Endometriose)",
+            "Controle Metabólico (Diabetes / Colesterol)",
+            "Performance Esportiva",
+            "Alimentação Plant-Based (Veg/Vegano)",
+            "Gestante & Lactante",
+            "Longevidade & Saúde Sênior",
+            "Guia Prático & Orientações Gerais"
         ]
         
-        protocolos_selecionados = [p for p in lista_protocolos if st.checkbox(p, key=p)]
+        protocolos_selecionados = []
+        col_proto1, col_proto2 = st.columns(2)
+        metade = (len(lista_protocolos) + 1) // 2
+        
+        with col_proto1:
+            for p in lista_protocolos[:metade]:
+                if st.checkbox(p, key=p):
+                    protocolos_selecionados.append(p)
+                    
+        with col_proto2:
+            for p in lista_protocolos[metade:]:
+                if st.checkbox(p, key=p):
+                    protocolos_selecionados.append(p)
         
         st.subheader("Plano Alimentar Base")
         pdf_file = st.file_uploader("Upload do Plano Alimentar Base (PDF):", type=["pdf"])
@@ -186,7 +206,7 @@ elif menu == "📋 Painel Nutribook":
         if status_filtro != "Todos":
             df_exibicao = df_exibicao[df_exibicao[col_status] == status_filtro]
 
-        # Busca dinâmica das 6 colunas sem criar duplicatas
+        # Busca dinâmica das colunas sem duplicatas
         c_data = next((c for c in df_exibicao.columns if 'carimbo' in c.lower() or 'data' in c.lower()), None)
         c_nome = next((c for c in df_exibicao.columns if 'nome' in c.lower()), None)
         c_email = next((c for c in df_exibicao.columns if 'email' in c.lower() or 'e-mail' in c.lower()), None)
@@ -204,11 +224,9 @@ elif menu == "📋 Painel Nutribook":
         if c_link: mapa_colunas[c_link] = "Link Nutribook"
         if c_status: mapa_colunas[c_status] = "Status"
 
-        # Filtra apenas as colunas mapeadas e renomeia
         cols_origem = list(mapa_colunas.keys())
         df_final = df_exibicao[cols_origem].rename(columns=mapa_colunas)
 
-        # Trata valores para evitar erros de tipo no PyArrow
         for col in df_final.columns:
             if col != "Link Nutribook":
                 df_final[col] = df_final[col].fillna("").astype(str).replace({'None': '', 'nan': '', '<NA>': ''})
