@@ -20,9 +20,11 @@ st.set_page_config(
 st.markdown("""
     <style>
     .stApp { background-color: #E2E8E2 !important; }
-    header[data-testid="stHeader"] { background: transparent !important; height: 1.5rem !important; }
-    .main .block-container { padding-top: 1rem !important; padding-bottom: 2rem !important; }
-    [data-testid="stSidebarContent"] { padding-top: 1rem !important; }
+    
+    /* Remove o espaço em branco gigante do topo */
+    header[data-testid="stHeader"] { display: none !important; }
+    .main .block-container { padding-top: 0rem !important; padding-bottom: 2rem !important; }
+    [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
 
     div.stButton > button, div.stFormSubmitButton > button {
         background-color: #2A5C36 !important;
