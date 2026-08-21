@@ -80,7 +80,7 @@ with st.sidebar:
 # =================================================================================
 
 if menu == "➕ Novo Nutribook":
-    st.title("📄 Novo Nutribook")
+    st.title("🍎 Novo Nutribook")
     st.write("Preencha as informações do paciente e anexe o plano em PDF para disparar a geração.")
     
     with st.form("form_nutribook", clear_on_submit=True):
@@ -153,7 +153,7 @@ if menu == "➕ Novo Nutribook":
                 st.error("Por favor, preencha o Nome do Paciente e selecione um arquivo PDF.")
 
 elif menu == "📋 Painel Nutribook":
-    st.title("🍎 Painel Nutribook")
+    st.title("📄 Painel Nutribook")
     st.write("Acompanhe os indicadores de geração, faturamento e histórico completo.")
     st.divider()
     
