@@ -107,7 +107,6 @@ if menu == "➕ Novo Nutribook":
                     st.error("Por favor, configure a URL do seu Apps Script Web App no código.")
                 else:
                     with st.spinner("Enviando arquivo e registrando pedido..."):
-                        # Converter arquivo para Base64
                         file_bytes = base64.b64encode(pdf_file.getvalue()).decode('utf-8')
                         protocolos_str = ", ".join(protocolos_selecionados) if protocolos_selecionados else "Padrão"
                         
@@ -184,16 +183,29 @@ elif menu == "📋 Painel Nutribook":
         if status_filtro != "Todos":
             df_exibicao = df_exibicao[df_exibicao[col_status] == status_filtro]
 
-        if 'Data_Parsed' in df_exibicao.columns:
-            df_exibicao = df_exibicao.drop(columns=['Data_Parsed'])
+        # Colunas permitidas no painel do usuário
+        colunas_permitidas = [
+            "Carimbo de data/hora",
+            "Nome do Paciente",
+            "E-mail do Paciente",
+            "Perfis / Protocolos do Paciente",
+            "Link Nutribook",
+            "Status"
+        ]
+        
+        # Filtra apenas as colunas desejadas que realmente existem no DataFrame
+        colunas_finais = [col for col in colunas_permitidas if col in df_exibicao.columns]
+        df_exibicao = df_exibicao[colunas_finais]
 
         st.dataframe(
             df_exibicao,
             use_container_width=True,
             hide_index=True,
             column_config={
-                "Link Nutribook": st.column_config.LinkColumn("Link Nutribook", display_text="🔗 Abrir PDF"),
-                "Upload do Plano Alimentar Base": st.column_config.LinkColumn("Plano Base", display_text="📄 Ver Base")
+                "Link Nutribook": st.column_config.LinkColumn(
+                    "Link Nutribook",
+                    display_text="🔗"
+                )
             }
         )
     else:
