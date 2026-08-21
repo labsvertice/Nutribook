@@ -7,7 +7,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaIoBaseUpload
 
 # ID da pasta de entrada para upload dos PDFs base
-PASTA_ENTRADAS_ID = '11Pv3PC3X6LpCj4Lg4W1-M7x6KEYERIjBiTSbUyZbxnkvFWHF4nk8Q5KWiOpX7c9NibA2pssC'
+PASTA_ENTRADAS_ID = '1_Bffls1oLxmaIUeQGsPGL0xVTL6CTLqj'
 
 # VALOR UNITÁRIO PARA CÁLCULO DE FATURAMENTO (Ajuste conforme o preço comercializado)
 VALOR_NUTRIBOOK = 35.00  
