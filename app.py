@@ -21,10 +21,21 @@ st.markdown("""
     <style>
     .stApp { background-color: #E2E8E2 !important; }
     
-    /* Remove o espaço em branco gigante do topo */
-    header[data-testid="stHeader"] { display: none !important; }
-    .main .block-container { padding-top: 0rem !important; padding-bottom: 2rem !important; }
-    [data-testid="stSidebarContent"] { padding-top: 0rem !important; }
+    /* Oculta a barra do topo e elimina o espaço em branco superior */
+    header[data-testid="stHeader"], [data-testid="stHeader"], header {
+        display: none !important;
+        height: 0px !important;
+    }
+    
+    .main .block-container, [data-testid="stMainBlockContainer"] {
+        padding-top: 1rem !important;
+        margin-top: -3.5rem !important;
+        padding-bottom: 2rem !important;
+    }
+    
+    [data-testid="stSidebarContent"] {
+        padding-top: 1rem !important;
+    }
 
     div.stButton > button, div.stFormSubmitButton > button {
         background-color: #2A5C36 !important;
