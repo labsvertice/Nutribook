@@ -177,7 +177,7 @@ elif menu == "📋 Painel Nutribook":
         df_dados['Data_Parsed'] = pd.to_datetime(df_dados[col_data], dayfirst=True, errors='coerce')
         df_concluidos = df_dados[df_dados[col_status].astype(str).str.strip().str.lower() == 'concluído']
         
-        VALOR_NUTRIBOOK = 8.00
+        VALOR_NUTRIBOOK = 5.00
         total_historico = len(df_concluidos)
         agora = pd.Timestamp.now()
         
