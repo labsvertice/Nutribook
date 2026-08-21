@@ -186,31 +186,42 @@ elif menu == "📋 Painel Nutribook":
         if status_filtro != "Todos":
             df_exibicao = df_exibicao[df_exibicao[col_status] == status_filtro]
 
-        if 'Data_Parsed' in df_exibicao.columns:
-            df_exibicao = df_exibicao.drop(columns=['Data_Parsed'])
+        # Busca dinâmica das 6 colunas sem criar duplicatas
+        c_data = next((c for c in df_exibicao.columns if 'carimbo' in c.lower() or 'data' in c.lower()), None)
+        c_nome = next((c for c in df_exibicao.columns if 'nome' in c.lower()), None)
+        c_email = next((c for c in df_exibicao.columns if 'email' in c.lower() or 'e-mail' in c.lower()), None)
+        c_perfil = next((c for c in df_exibicao.columns if 'perfil' in c.lower() or 'protocolo' in c.lower()), None)
+        c_link = next((c for c in df_exibicao.columns if 'link' in c.lower()), None)
+        if not c_link:
+            c_link = next((c for c in df_exibicao.columns if 'upload' in c.lower()), None)
+        c_status = next((c for c in df_exibicao.columns if 'status' in c.lower()), None)
 
-        # Remove a coluna Conduta
-        cols_remover = [c for c in df_exibicao.columns if 'conduta' in c.lower()]
-        df_exibicao = df_exibicao.drop(columns=cols_remover, errors='ignore')
+        mapa_colunas = {}
+        if c_data: mapa_colunas[c_data] = "Carimbo de data/hora"
+        if c_nome: mapa_colunas[c_nome] = "Nome do Paciente"
+        if c_email: mapa_colunas[c_email] = "E-mail do Paciente"
+        if c_perfil: mapa_colunas[c_perfil] = "Perfil / Protocolo"
+        if c_link: mapa_colunas[c_link] = "Link Nutribook"
+        if c_status: mapa_colunas[c_status] = "Status"
 
-        # Renomeia a coluna contendo o link para "Link Nutribook"
-        renomear_mapa = {}
-        for c in df_exibicao.columns:
-            if 'upload' in c.lower() or 'link' in c.lower():
-                renomear_mapa[c] = "Link Nutribook"
-        
-        df_exibicao = df_exibicao.rename(columns=renomear_mapa)
+        # Filtra apenas as colunas mapeadas e renomeia
+        cols_origem = list(mapa_colunas.keys())
+        df_final = df_exibicao[cols_origem].rename(columns=mapa_colunas)
 
-        # Configura exibição do link como apenas o ícone 🔗
+        # Trata valores para evitar erros de tipo no PyArrow
+        for col in df_final.columns:
+            if col != "Link Nutribook":
+                df_final[col] = df_final[col].fillna("").astype(str).replace({'None': '', 'nan': '', '<NA>': ''})
+
         config_colunas = {}
-        if "Link Nutribook" in df_exibicao.columns:
+        if "Link Nutribook" in df_final.columns:
             config_colunas["Link Nutribook"] = st.column_config.LinkColumn(
                 "Link Nutribook",
                 display_text="🔗"
             )
 
         st.dataframe(
-            df_exibicao,
+            df_final,
             use_container_width=True,
             hide_index=True,
             column_config=config_colunas
