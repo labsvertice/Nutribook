@@ -51,7 +51,10 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def carregar_dados_planilha():
     try:
-        return conn.read(ttl=0)
+        df = conn.read(ttl=0)
+        if df is not None and not df.empty:
+            df.columns = df.columns.astype(str).str.strip()
+        return df
     except Exception:
         return None
 
@@ -183,30 +186,34 @@ elif menu == "📋 Painel Nutribook":
         if status_filtro != "Todos":
             df_exibicao = df_exibicao[df_exibicao[col_status] == status_filtro]
 
-        # Colunas permitidas no painel do usuário
-        colunas_permitidas = [
-            "Carimbo de data/hora",
-            "Nome do Paciente",
-            "E-mail do Paciente",
-            "Perfis / Protocolos do Paciente",
-            "Link Nutribook",
-            "Status"
-        ]
+        if 'Data_Parsed' in df_exibicao.columns:
+            df_exibicao = df_exibicao.drop(columns=['Data_Parsed'])
+
+        # Remove a coluna Conduta
+        cols_remover = [c for c in df_exibicao.columns if 'conduta' in c.lower()]
+        df_exibicao = df_exibicao.drop(columns=cols_remover, errors='ignore')
+
+        # Renomeia a coluna contendo o link para "Link Nutribook"
+        renomear_mapa = {}
+        for c in df_exibicao.columns:
+            if 'upload' in c.lower() or 'link' in c.lower():
+                renomear_mapa[c] = "Link Nutribook"
         
-        # Filtra apenas as colunas desejadas que realmente existem no DataFrame
-        colunas_finais = [col for col in colunas_permitidas if col in df_exibicao.columns]
-        df_exibicao = df_exibicao[colunas_finais]
+        df_exibicao = df_exibicao.rename(columns=renomear_mapa)
+
+        # Configura exibição do link como apenas o ícone 🔗
+        config_colunas = {}
+        if "Link Nutribook" in df_exibicao.columns:
+            config_colunas["Link Nutribook"] = st.column_config.LinkColumn(
+                "Link Nutribook",
+                display_text="🔗"
+            )
 
         st.dataframe(
             df_exibicao,
             use_container_width=True,
             hide_index=True,
-            column_config={
-                "Link Nutribook": st.column_config.LinkColumn(
-                    "Link Nutribook",
-                    display_text="🔗"
-                )
-            }
+            column_config=config_colunas
         )
     else:
         st.info("Nenhum dado encontrado na planilha do Google Sheets.")
