@@ -75,6 +75,20 @@ def carregar_dados_planilha():
     except Exception:
         return None
 
+@st.cache_data(ttl=15)
+def checar_status_whatsapp_rapido():
+    """Consulta o status da Evolution API com cache curto de 15s para não travar a interface."""
+    try:
+        url_state = f"{EVOLUTION_API_URL}/instance/connectionState/{INSTANCE_NAME}"
+        headers = {"apikey": API_KEY}
+        res = requests.get(url_state, headers=headers, timeout=2)
+        if res.status_code == 200:
+            state = res.json().get("instance", {}).get("state", "disconnected")
+            return state == "open"
+    except Exception:
+        pass
+    return False
+
 # =================================================================================
 # 2. SIDEBAR / NAV
 # =================================================================================
@@ -98,6 +112,10 @@ if menu == "➕ Novo Nutribook":
     st.title("🍎 Novo Nutribook")
     st.write("Preencha as informações do paciente e anexe o plano em PDF para disparar a geração.")
     
+    # Checa status do WhatsApp para o rótulo
+    wa_conectado = checar_status_whatsapp_rapido()
+    badge_wa = "🟢 Conectado" if wa_conectado else "🔴 Desconectado"
+    
     with st.form("form_nutribook", clear_on_submit=True):
         st.subheader("Dados do Paciente")
         col_nome, col_email, col_whatsapp = st.columns(3)
@@ -106,7 +124,7 @@ if menu == "➕ Novo Nutribook":
         with col_email:
             email_paciente = st.text_input("E-mail do Paciente")
         with col_whatsapp:
-            whatsapp_paciente = st.text_input("WhatsApp do Paciente (com DDD) *", placeholder="Ex: 5548999999999")
+            whatsapp_paciente = st.text_input(f"WhatsApp do Paciente (com DDD) * — {badge_wa}", placeholder="Ex: 5548999999999")
         
         st.subheader("Perfis / Protocolos do Paciente")
         lista_protocolos = [
