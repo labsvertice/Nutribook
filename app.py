@@ -107,7 +107,7 @@ if menu == "➕ Novo Nutribook":
         with col_email:
             email_paciente = st.text_input("E-mail do Paciente")
         with col_whatsapp:
-        whatsapp_paciente = st.text_input("WhatsApp do Paciente (com DDD) *", placeholder="Ex: 5548999999999")        
+            whatsapp_paciente = st.text_input("WhatsApp do Paciente (com DDD) *", placeholder="Ex: 5548999999999")
 
         st.subheader("Perfis / Protocolos do Paciente")
         lista_protocolos = [
