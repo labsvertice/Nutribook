@@ -26,7 +26,6 @@ st.markdown("""
     <style>
     .stApp { background-color: #E2E8E2 !important; }
     
-    /* Oculta o cabeçalho padrão mantendo o espaço do topo equilibrado */
     header[data-testid="stHeader"], [data-testid="stHeader"], header {
         display: none !important;
         height: 0px !important;
@@ -170,7 +169,7 @@ if menu == "➕ Novo Nutribook":
                             st.error(f"Erro ao registrar: {response.text}")
             else:
                 st.error("Por favor, preencha o Nome, WhatsApp do Paciente e selecione um arquivo PDF.")
-                
+
 elif menu == "📋 Painel Nutribook":
     st.title("📄 Painel Nutribook")
     st.write("Acompanhe os indicadores de geração, faturamento e histórico completo.")
@@ -227,7 +226,6 @@ elif menu == "📋 Painel Nutribook":
         if status_filtro != "Todos":
             df_exibicao = df_exibicao[df_exibicao[col_status] == status_filtro]
 
-        # Busca dinâmica das colunas
         c_data = next((c for c in df_exibicao.columns if 'carimbo' in c.lower() or 'data' in c.lower()), None)
         c_nome = next((c for c in df_exibicao.columns if 'nome' in c.lower()), None)
         c_email = next((c for c in df_exibicao.columns if 'email' in c.lower() or 'e-mail' in c.lower()), None)
@@ -296,7 +294,6 @@ elif menu == "📱 Conectar WhatsApp":
                 st.error("🔴 **WhatsApp Desconectado**")
                 st.warning("Abra o WhatsApp no seu celular, vá em 'Aparelhos Conectados' e escaneie o QR Code abaixo:")
                 
-                # Busca QR Code
                 url_qr = f"{EVOLUTION_API_URL}/instance/connect/{INSTANCE_NAME}"
                 res_qr = requests.get(url_qr, headers=headers)
                 if res_qr.status_code == 200:
