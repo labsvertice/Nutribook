@@ -108,7 +108,7 @@ if menu == "➕ Novo Nutribook":
             email_paciente = st.text_input("E-mail do Paciente")
         with col_whatsapp:
             whatsapp_paciente = st.text_input("WhatsApp do Paciente (com DDD) *", placeholder="Ex: 5548999999999")
-
+        
         st.subheader("Perfis / Protocolos do Paciente")
         lista_protocolos = [
             "Fertilidade Feminina",
@@ -170,7 +170,7 @@ if menu == "➕ Novo Nutribook":
                             st.error(f"Erro ao registrar: {response.text}")
             else:
                 st.error("Por favor, preencha o Nome, WhatsApp do Paciente e selecione um arquivo PDF.")
-
+                
 elif menu == "📋 Painel Nutribook":
     st.title("📄 Painel Nutribook")
     st.write("Acompanhe os indicadores de geração, faturamento e histórico completo.")
