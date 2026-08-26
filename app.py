@@ -1,4 +1,5 @@
 import base64
+import os
 import pandas as pd
 import requests
 import streamlit as st
@@ -88,7 +89,7 @@ def checar_status_whatsapp_rapido():
             f"{EVOLUTION_API_URL}/instance/connectionState/{INSTANCE_NAME}"
         )
         headers = {"apikey": API_KEY}
-        res = requests.get(url_state, headers=headers, timeout=2)
+        res = requests.get(url_state, headers=headers, timeout=3)
         if res.status_code == 200:
             state = res.json().get("instance", {}).get("state", "disconnected")
             return state == "open"
@@ -101,7 +102,11 @@ def checar_status_whatsapp_rapido():
 # 2. SIDEBAR / NAV
 # =================================================================================
 with st.sidebar:
-    st.image("logo.png", width=160)
+    if os.path.exists("logo.png"):
+        st.image("logo.png", width=160)
+    else:
+        st.title("🍎 Nutribook")
+
     st.markdown("#### Olá, **Jean Victor**! 👋")
     st.caption("Vamos iniciar o próximo Nutribook?")
     st.divider()
@@ -179,7 +184,7 @@ if menu == "➕ Novo Nutribook":
 
         if submitted:
             if nome_paciente and whatsapp_paciente and pdf_file:
-                if WEBAPP_URL == "SUA_URL_DO_WEB_APP_AQUI":
+                if WEBAPP_URL == "SUA_URL_DO_WEB_APP_AQUI" or not WEBAPP_URL:
                     st.error(
                         "Por favor, configure a URL do seu Apps Script Web App"
                         " no código."
@@ -188,45 +193,48 @@ if menu == "➕ Novo Nutribook":
                     with st.spinner(
                         "Enviando arquivo e registrando pedido..."
                     ):
-                        file_bytes = base64.b64encode(
-                            pdf_file.getvalue()
-                        ).decode("utf-8")
-                        protocolos_str = (
-                            ", ".join(protocolos_selecionados)
-                            if protocolos_selecionados
-                            else "Padrão"
-                        )
-
-                        # Mensagem personalizada e humanizada para o WhatsApp
-                        mensagem_whatsapp = (
-                            f"Olá, *{nome_paciente}*! 🍎✨\n\n"
-                            f"Aqui está o seu *Nutribook*, preparado com muito carinho e 100% personalizado para a sua rotina e seus objetivos! 🥗💪\n\n"
-                            f"Dê uma olhada no documento em anexo com calma. Qualquer dúvida que tiver, estou por aqui para te ajudar.\n\n"
-                            f"Bora caprichar na alimentação e focar nos resultados! 🚀💚"
-                        )
-
-                        payload = {
-                            "nome": nome_paciente,
-                            "email": email_paciente,
-                            "whatsapp": whatsapp_paciente,
-                            "protocolos": protocolos_str,
-                            "fileName": pdf_file.name,
-                            "fileBytes": file_bytes,
-                            "mensagem": mensagem_whatsapp,
-                        }
-
-                        response = requests.post(WEBAPP_URL, json=payload)
-
-                        if (
-                            response.status_code == 200
-                            and response.json().get("status") == "success"
-                        ):
-                            st.success(
-                                f"✅ Nutribook para **{nome_paciente}**"
-                                " registrado com sucesso!"
+                        try:
+                            file_bytes = base64.b64encode(
+                                pdf_file.getvalue()
+                            ).decode("utf-8")
+                            protocolos_str = (
+                                ", ".join(protocolos_selecionados)
+                                if protocolos_selecionados
+                                else "Padrão"
                             )
-                        else:
-                            st.error(f"Erro ao registrar: {response.text}")
+
+                            # Mensagem personalizada e humanizada para o WhatsApp
+                            mensagem_whatsapp = (
+                                f"Olá, *{nome_paciente}*! 🍎✨\n\n"
+                                f"Aqui está o seu *Nutribook*, preparado com muito carinho e 100% personalizado para a sua rotina e seus objetivos! 🥗💪\n\n"
+                                f"Dê uma olhada no documento em anexo com calma. Qualquer dúvida que tiver, estou por aqui para te ajudar.\n\n"
+                                f"Bora caprichar na alimentação e focar nos resultados! 🚀💚"
+                            )
+
+                            payload = {
+                                "nome": nome_paciente,
+                                "email": email_paciente,
+                                "whatsapp": whatsapp_paciente,
+                                "protocolos": protocolos_str,
+                                "fileName": pdf_file.name,
+                                "fileBytes": file_bytes,
+                                "mensagem": mensagem_whatsapp,
+                            }
+
+                            response = requests.post(WEBAPP_URL, json=payload, timeout=30)
+
+                            if (
+                                response.status_code == 200
+                                and response.json().get("status") == "success"
+                            ):
+                                st.success(
+                                    f"✅ Nutribook para **{nome_paciente}**"
+                                    " registrado com sucesso!"
+                                )
+                            else:
+                                st.error(f"Erro ao registrar: {response.text}")
+                        except Exception as e:
+                            st.error(f"Falha na comunicação com o Apps Script: {e}")
             else:
                 st.error(
                     "Por favor, preencha o Nome, WhatsApp do Paciente e"
@@ -244,6 +252,8 @@ elif menu == "📋 Painel Nutribook":
     df_dados = carregar_dados_planilha()
 
     if df_dados is not None and not df_dados.empty:
+        df_dados = df_dados.copy()
+        
         col_status = (
             "Status" if "Status" in df_dados.columns else df_dados.columns[-1]
         )
@@ -256,10 +266,10 @@ elif menu == "📋 Painel Nutribook":
         df_dados["Data_Parsed"] = pd.to_datetime(
             df_dados[col_data], dayfirst=True, errors="coerce"
         )
-        df_concluidos = df_dados[
-            df_dados[col_status].astype(str).str.strip().str.lower()
-            == "concluído"
-        ]
+        
+        # Filtro de concluídos aceitando com e sem acento
+        status_clean = df_dados[col_status].astype(str).str.strip().str.lower()
+        df_concluidos = df_dados[status_clean.isin(["concluído", "concluido"])]
 
         VALOR_NUTRIBOOK = 5.00
         total_historico = len(df_concluidos)
@@ -299,10 +309,10 @@ elif menu == "📋 Painel Nutribook":
         st.markdown("---")
         st.subheader("📈 Evolução Mensal (Nutribooks Concluídos)")
 
-        if not df_concluidos.empty and df_concluidos["Data_Parsed"].notna().any():
+        df_validas = df_concluidos.dropna(subset=["Data_Parsed"])
+        if not df_validas.empty:
             df_grafico = (
-                df_concluidos.dropna(subset=["Data_Parsed"])
-                .groupby(df_concluidos["Data_Parsed"].dt.to_period("M"))
+                df_validas.groupby(df_validas["Data_Parsed"].dt.to_period("M"))
                 .size()
                 .reset_index(name="Quantidade")
             )
@@ -310,6 +320,8 @@ elif menu == "📋 Painel Nutribook":
             st.bar_chart(
                 df_grafico.set_index("Mês/Ano")[["Quantidade"]], height=260
             )
+        else:
+            st.info("Nenhuma data válida encontrada para exibição do gráfico.")
 
         st.markdown("---")
         st.subheader("📋 Histórico de Pedidos")
@@ -388,7 +400,10 @@ elif menu == "📋 Painel Nutribook":
             mapa_colunas[c_status] = "Status"
 
         cols_origem = list(mapa_colunas.keys())
-        df_final = df_exibicao[cols_origem].rename(columns=mapa_colunas)
+        if cols_origem:
+            df_final = df_exibicao[cols_origem].rename(columns=mapa_colunas)
+        else:
+            df_final = df_exibicao.copy()
 
         for col in df_final.columns:
             if col != "Link Nutribook":
@@ -432,7 +447,7 @@ elif menu == "📱 Conectar WhatsApp":
             f"{EVOLUTION_API_URL}/instance/connectionState/{INSTANCE_NAME}"
         )
         headers = {"apikey": API_KEY}
-        res_state = requests.get(url_state, headers=headers)
+        res_state = requests.get(url_state, headers=headers, timeout=5)
 
         if res_state.status_code == 200:
             state_data = res_state.json()
@@ -454,7 +469,7 @@ elif menu == "📱 Conectar WhatsApp":
                 )
 
                 url_qr = f"{EVOLUTION_API_URL}/instance/connect/{INSTANCE_NAME}"
-                res_qr = requests.get(url_qr, headers=headers)
+                res_qr = requests.get(url_qr, headers=headers, timeout=5)
                 if res_qr.status_code == 200:
                     qr_data = res_qr.json()
                     base64_qr = qr_data.get("base64") or qr_data.get("code")
