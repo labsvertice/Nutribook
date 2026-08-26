@@ -128,7 +128,6 @@ if menu == "➕ Novo Nutribook":
         " disparar a geração."
     )
 
-    # Checa status do WhatsApp para o rótulo
     wa_conectado = checar_status_whatsapp_rapido()
     badge_wa = "🟢 Conectado" if wa_conectado else "🔴 Desconectado"
 
@@ -203,7 +202,6 @@ if menu == "➕ Novo Nutribook":
                                 else "Padrão"
                             )
 
-                            # Mensagem personalizada e humanizada para o WhatsApp
                             mensagem_whatsapp = (
                                 f"Olá, *{nome_paciente}*! 🍎✨\n\n"
                                 f"Aqui está o seu *Nutribook*, preparado com muito carinho e 100% personalizado para a sua rotina e seus objetivos! 🥗💪\n\n"
@@ -267,7 +265,6 @@ elif menu == "📋 Painel Nutribook":
             df_dados[col_data], dayfirst=True, errors="coerce"
         )
         
-        # Filtro de concluídos aceitando com e sem acento
         status_clean = df_dados[col_status].astype(str).str.strip().str.lower()
         df_concluidos = df_dados[status_clean.isin(["concluído", "concluido"])]
 
@@ -405,6 +402,7 @@ elif menu == "📋 Painel Nutribook":
         else:
             df_final = df_exibicao.copy()
 
+        # Limpeza rigorosa de strings e remoção do sufixo .0 de floats
         for col in df_final.columns:
             if col != "Link Nutribook":
                 df_final[col] = (
@@ -412,6 +410,8 @@ elif menu == "📋 Painel Nutribook":
                     .fillna("")
                     .astype(str)
                     .replace({"None": "", "nan": "", "<NA>": ""})
+                    .str.replace(r"\.0$", "", regex=True)
+                    .str.strip()
                 )
 
         config_colunas = {}
