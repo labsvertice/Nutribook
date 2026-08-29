@@ -342,17 +342,20 @@ if menu == "➕ Novo Nutribook":
     badge_wa = "🟢 Conectado" if wa_conectado else "🔴 Desconectado"
 
     with st.form("form_nutribook", clear_on_submit=True):
-        st.subheader("Dados do Paciente")
-        col_nome, col_email, col_whatsapp = st.columns(3)
+                st.subheader("Dados do Paciente")
+        col_nome, col_whatsapp, col_email = st.columns(3)
+        
         with col_nome:
             nome_paciente = st.text_input("Nome do Paciente *")
-        with col_email:
-            email_paciente = st.text_input("E-mail do Paciente")
+        
         with col_whatsapp:
             whatsapp_paciente = st.text_input(
                 f"WhatsApp do Paciente (com DDD) * — {badge_wa}",
                 placeholder="Ex: 5548999999999",
             )
+        
+        with col_email:
+            email_paciente = st.text_input("E-mail do Paciente")
 
         st.subheader("Perfis / Protocolos do Paciente")
         lista_protocolos = [
