@@ -344,8 +344,8 @@ if menu == "➕ Novo Nutribook":
                                 "fileName": pdf_file.name,
                                 "fileBytes": file_bytes,
                                 "mensagem": mensagem_whatsapp,
+                                "instancia": INSTANCE_NAME,
                                 "emailNutricionista": EMAIL_NUTRICIONISTA_LOGADA,
-                                "instance": INSTANCE_NAME,
                             }
 
                             response = requests.post(WEBAPP_URL, json=payload, timeout=30)
