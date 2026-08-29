@@ -30,27 +30,36 @@ st.set_page_config(
 
 def tela_login():
     """Exibe a tela de login quando não existe uma sessão autenticada."""
+
     col_esq, col_login, col_dir = st.columns([1, 1.1, 1])
 
     with col_login:
 
-        # Cabeçalho Nutribook
-        if os.path.exists("cabecalho.png"):
+        # ============================================================
+        # CABEÇALHO NUTRIBOOK
+        # ============================================================
+
+        if os.path.exists("nutribook_cabecalho.png"):
             st.image(
-                "cabecalho.png",
+                "nutribook_cabecalho.png",
                 use_container_width=True
             )
+
+        # ============================================================
+        # TÍTULO E TEXTO
+        # ============================================================
 
         st.markdown(
             """
             <div style="
                 text-align: center;
-                margin-top: 25px;
-                margin-bottom: 10px;
+                margin-top: 30px;
+                margin-bottom: 20px;
             ">
                 <h2 style="
                     color: #112214;
-                    margin-bottom: 8px;
+                    margin: 0 0 10px 0;
+                    font-size: 30px;
                 ">
                     🔐 Acesso ao Nutribook
                 </h2>
@@ -58,7 +67,7 @@ def tela_login():
                 <p style="
                     color: #334033;
                     font-size: 16px;
-                    margin-top: 0;
+                    margin: 0;
                 ">
                     Entre com sua conta Google para acessar o portal do consultório.
                 </p>
@@ -67,21 +76,31 @@ def tela_login():
             unsafe_allow_html=True
         )
 
-        st.button(
-            "Entrar com Google",
-            on_click=st.login,
-            use_container_width=True
-        )
+        # ============================================================
+        # BOTÃO GOOGLE CENTRALIZADO E MENOR
+        # ============================================================
 
-        # Rodapé Vértice
+        col_btn_esq, col_btn, col_btn_dir = st.columns([1, 1.2, 1])
+
+        with col_btn:
+            st.button(
+                "Entrar com Google",
+                on_click=st.login,
+                use_container_width=True
+            )
+
+        # ============================================================
+        # RODAPÉ VÉRTICE
+        # ============================================================
+
         st.markdown(
-            "<div style='height: 35px;'></div>",
+            "<div style='height: 40px;'></div>",
             unsafe_allow_html=True
         )
 
-        if os.path.exists("rodape.png"):
+        if os.path.exists("nutribook_rodape.png"):
             st.image(
-                "rodape.png",
+                "nutribook_rodape.png",
                 use_container_width=True
             )
 
