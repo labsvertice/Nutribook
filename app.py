@@ -43,7 +43,7 @@ def tela_login():
         if os.path.exists("cabecalho.png"):
             st.image(
                 "cabecalho.png",
-                use_container_width=True
+                width=850
             )
 
         # ============================================================
@@ -108,15 +108,19 @@ def tela_login():
             "<div style='height: 35px;'></div>",
             unsafe_allow_html=True
         )
-
         # ============================================================
-        # RODAPÉ VÉRTICE
+        # RODAPÉ
         # ============================================================
-
+        
+        st.markdown(
+            "<div style='height: 40px;'></div>",
+            unsafe_allow_html=True
+        )
+        
         if os.path.exists("rodape.png"):
             st.image(
                 "rodape.png",
-                width=520
+                width=650
             )
             
 
