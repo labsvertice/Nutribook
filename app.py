@@ -43,7 +43,7 @@ def tela_login():
         if os.path.exists("cabecalho.png"):
             st.image(
                 "cabecalho.png",
-                width=850
+                width=1000
             )
 
         # ============================================================
@@ -120,7 +120,7 @@ def tela_login():
         if os.path.exists("rodape.png"):
             st.image(
                 "rodape.png",
-                width=650
+                width=800
             )
             
 
