@@ -501,56 +501,37 @@ elif menu == "📋 Painel Nutribook":
         status_clean = df_dados[col_status].astype(str).str.strip().str.lower()
         df_concluidos = df_dados[status_clean.isin(["concluído", "concluido"])]
 
+        # ================================================================
+        # FONTE OFICIAL DAS MÉTRICAS MENSAIS
+        # ================================================================
+        #
+        # A aba Historico_Nutribooks é a fonte oficial dos números mensais.
+        # A aba principal continua sendo usada apenas para o histórico
+        # detalhado dos pedidos.
+        # ================================================================
+
         VALOR_NUTRIBOOK = 5.00
-        total_historico = len(df_concluidos)
-        agora = pd.Timestamp.now()
 
-        df_mes_atual = df_concluidos[
-            (df_concluidos["Data_Parsed"].dt.month == agora.month)
-            & (df_concluidos["Data_Parsed"].dt.year == agora.year)
-        ]
-        total_mes = len(df_mes_atual)
-
-        faturamento_mes = total_mes * VALOR_NUTRIBOOK
-        faturamento_total = total_historico * VALOR_NUTRIBOOK
-
-        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-        with kpi1:
-            st.metric("Total Concluídos (Geral)", f"{total_historico}")
-        with kpi2:
-            st.metric("Concluídos no Mês", f"{total_mes}")
-        with kpi3:
-            st.metric(
-                "Faturamento Mês Atual",
-                f"R$ {faturamento_mes:,.2f}"
-                .replace(",", "X")
-                .replace(".", ",")
-                .replace("X", "."),
-            )
-        with kpi4:
-            st.metric(
-                "Faturamento Acumulado",
-                f"R$ {faturamento_total:,.2f}"
-                .replace(",", "X")
-                .replace(".", ",")
-                .replace("X", "."),
-            )
-
-        st.markdown("---")
-        st.subheader("📈 Evolução Mensal (Nutribooks Concluídos)")
-
-        # O gráfico mensal usa exclusivamente a aba Historico_Nutribooks,
-        # filtrada pela nutricionista autenticada.
         try:
             df_historico = conn.read(
                 worksheet="Historico_Nutribooks",
                 ttl=0
             )
             df_historico = normalizar_colunas(df_historico)
-        except Exception:
+        except Exception as e:
             df_historico = None
+            st.error(
+                f"Não foi possível carregar o histórico mensal: {e}"
+            )
+
+        total_historico = 0
+        total_mes = 0
+        faturamento_mes = 0.0
+        faturamento_total = 0.0
+        historico_pronto = False
 
         if df_historico is not None and not df_historico.empty:
+
             c_mes_hist = localizar_coluna(
                 df_historico,
                 ["Mês", "Mes"]
@@ -564,7 +545,12 @@ elif menu == "📋 Painel Nutribook":
                 ["Nutribooks", "Nutribooks no mês", "Quantidade"]
             )
 
-            if c_mes_hist and c_email_hist and c_nutribooks_hist:
+            if (
+                c_mes_hist
+                and c_email_hist
+                and c_nutribooks_hist
+            ):
+
                 df_historico = df_historico[
                     df_historico[c_email_hist]
                     .fillna("")
@@ -575,10 +561,16 @@ elif menu == "📋 Painel Nutribook":
                 ].copy()
 
                 if not df_historico.empty:
-                    # Aceita tanto 2026-08 em texto quanto uma data real do Sheets.
+
+                    # Aceita 2026-08 em texto ou uma data real do Sheets.
                     df_historico["Mes_Parsed"] = pd.to_datetime(
                         df_historico[c_mes_hist],
                         errors="coerce"
+                    )
+
+                    df_historico["Mes_Chave"] = (
+                        df_historico["Mes_Parsed"]
+                        .dt.strftime("%Y-%m")
                     )
 
                     df_historico["Quantidade"] = pd.to_numeric(
@@ -586,46 +578,116 @@ elif menu == "📋 Painel Nutribook":
                         errors="coerce"
                     ).fillna(0)
 
-                    df_grafico = (
+                    # Garante uma única linha por mês para o painel.
+                    df_historico = (
                         df_historico
                         .dropna(subset=["Mes_Parsed"])
                         .sort_values("Mes_Parsed")
-                        [["Mes_Parsed", "Quantidade"]]
                         .drop_duplicates(
-                            subset=["Mes_Parsed"],
+                            subset=["Mes_Chave"],
                             keep="last"
                         )
                         .copy()
                     )
 
-                    if not df_grafico.empty:
-                        df_grafico["Mês/Ano"] = (
-                            df_grafico["Mes_Parsed"]
-                            .dt.strftime("%m/%Y")
+                    if not df_historico.empty:
+
+                        agora = pd.Timestamp.now()
+                        mes_atual_chave = agora.strftime("%Y-%m")
+
+                        total_historico = int(
+                            df_historico["Quantidade"].sum()
                         )
 
-                        st.bar_chart(
-                            df_grafico.set_index("Mês/Ano")[["Quantidade"]],
-                            height=260
+                        total_mes = int(
+                            df_historico.loc[
+                                df_historico["Mes_Chave"] == mes_atual_chave,
+                                "Quantidade"
+                            ].sum()
                         )
-                    else:
-                        st.info(
-                            "Nenhum histórico mensal válido encontrado "
-                            "para exibição do gráfico."
+
+                        faturamento_mes = (
+                            total_mes * VALOR_NUTRIBOOK
                         )
-                else:
-                    st.info(
-                        "Nenhum histórico mensal encontrado para "
-                        "a nutricionista logada."
-                    )
-            else:
-                st.error(
-                    "A aba Historico_Nutribooks não possui as colunas "
-                    "esperadas para montar o gráfico."
-                )
-        else:
+
+                        faturamento_total = (
+                            total_historico * VALOR_NUTRIBOOK
+                        )
+
+                        historico_pronto = True
+
+        # ================================================================
+        # KPIs — BASEADOS NO HISTÓRICO MENSAL OFICIAL
+        # ================================================================
+
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+
+        with kpi1:
+            st.metric(
+                "Total Concluídos (Geral)",
+                f"{total_historico}"
+            )
+
+        with kpi2:
+            st.metric(
+                "Concluídos no Mês",
+                f"{total_mes}"
+            )
+
+        with kpi3:
+            st.metric(
+                "Faturamento Mês Atual",
+                f"R$ {faturamento_mes:,.2f}"
+                .replace(",", "X")
+                .replace(".", ",")
+                .replace("X", "."),
+            )
+
+        with kpi4:
+            st.metric(
+                "Faturamento Acumulado",
+                f"R$ {faturamento_total:,.2f}"
+                .replace(",", "X")
+                .replace(".", ",")
+                .replace("X", "."),
+            )
+
+        st.markdown("---")
+        st.subheader("📈 Evolução Mensal (Nutribooks Concluídos)")
+
+        # ================================================================
+        # GRÁFICO — MESMA FONTE DOS KPIs
+        # ================================================================
+
+        if historico_pronto:
+
+            df_grafico = (
+                df_historico
+                .sort_values("Mes_Parsed")
+                [["Mes_Parsed", "Quantidade"]]
+                .copy()
+            )
+
+            df_grafico["Mês/Ano"] = (
+                df_grafico["Mes_Parsed"]
+                .dt.strftime("%m/%Y")
+            )
+
+            st.bar_chart(
+                df_grafico.set_index("Mês/Ano")[["Quantidade"]],
+                height=260
+            )
+
+        elif df_historico is not None and df_historico.empty:
             st.info(
-                "Nenhum histórico mensal encontrado para exibição do gráfico."
+                "Nenhum histórico mensal encontrado para "
+                "a nutricionista logada."
+            )
+
+        elif df_historico is not None:
+            st.error(
+                "A aba Historico_Nutribooks não possui as colunas "
+                "esperadas para as métricas mensais."
             )
 
         st.markdown("---")
