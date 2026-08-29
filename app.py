@@ -33,12 +33,57 @@ def tela_login():
     col_esq, col_login, col_dir = st.columns([1, 1.1, 1])
 
     with col_login:
-        if os.path.exists("logo.png"):
-            st.image("logo.png", width=180)
 
-        st.markdown("## 🔐 Acesso ao Nutribook")
-        st.write("Entre com sua conta Google para acessar o portal do consultório.")
-        st.button("Entrar com Google", on_click=st.login)
+        # Cabeçalho Nutribook
+        if os.path.exists("cabecalho.png"):
+            st.image(
+                "cabecalho.png",
+                use_container_width=True
+            )
+
+        st.markdown(
+            """
+            <div style="
+                text-align: center;
+                margin-top: 25px;
+                margin-bottom: 10px;
+            ">
+                <h2 style="
+                    color: #112214;
+                    margin-bottom: 8px;
+                ">
+                    🔐 Acesso ao Nutribook
+                </h2>
+
+                <p style="
+                    color: #334033;
+                    font-size: 16px;
+                    margin-top: 0;
+                ">
+                    Entre com sua conta Google para acessar o portal do consultório.
+                </p>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+
+        st.button(
+            "Entrar com Google",
+            on_click=st.login,
+            use_container_width=True
+        )
+
+        # Rodapé Vértice
+        st.markdown(
+            "<div style='height: 35px;'></div>",
+            unsafe_allow_html=True
+        )
+
+        if os.path.exists("rodape.png"):
+            st.image(
+                "rodape.png",
+                use_container_width=True
+            )
 
 
 def obter_email_usuario_logado():
