@@ -81,21 +81,24 @@ def tela_login():
                 on_click=st.login,
                 use_container_width=True
             )
+# ============================================================
+# RODAPÉ
+# ============================================================
 
-        # ============================================================
-        # RODAPÉ
-        # ============================================================
+st.markdown(
+    "<div style='height:40px;'></div>",
+    unsafe_allow_html=True
+)
 
-        st.markdown(
-            "<div style='height:40px;'></div>",
-            unsafe_allow_html=True
-        )
+st.write("rodape existe:", os.path.exists("rodape.png"))
 
-        if os.path.exists("rodape.png"):
-            st.image(
-                "rodape.png",
-                use_container_width=True
-            )
+try:
+    st.image(
+        "rodape.png",
+        use_container_width=True
+    )
+except Exception as e:
+    st.warning(f"Rodapé não carregado: {e}")
             
 
 def obter_email_usuario_logado():
