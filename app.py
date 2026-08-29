@@ -452,19 +452,94 @@ elif menu == "📋 Painel Nutribook":
         st.markdown("---")
         st.subheader("📈 Evolução Mensal (Nutribooks Concluídos)")
 
-        df_validas = df_concluidos.dropna(subset=["Data_Parsed"])
-        if not df_validas.empty:
-            df_grafico = (
-                df_validas.groupby(df_validas["Data_Parsed"].dt.to_period("M"))
-                .size()
-                .reset_index(name="Quantidade")
+        # O gráfico mensal usa exclusivamente a aba Historico_Nutribooks,
+        # filtrada pela nutricionista autenticada.
+        try:
+            df_historico = conn.read(
+                worksheet="Historico_Nutribooks",
+                ttl=0
             )
-            df_grafico["Mês/Ano"] = df_grafico["Data_Parsed"].astype(str)
-            st.bar_chart(
-                df_grafico.set_index("Mês/Ano")[["Quantidade"]], height=260
+            df_historico = normalizar_colunas(df_historico)
+        except Exception:
+            df_historico = None
+
+        if df_historico is not None and not df_historico.empty:
+            c_mes_hist = localizar_coluna(
+                df_historico,
+                ["Mês", "Mes"]
             )
+            c_email_hist = localizar_coluna(
+                df_historico,
+                ["E-mail Nutricionista", "E-mail", "Email"]
+            )
+            c_nutribooks_hist = localizar_coluna(
+                df_historico,
+                ["Nutribooks", "Nutribooks no mês", "Quantidade"]
+            )
+
+            if c_mes_hist and c_email_hist and c_nutribooks_hist:
+                df_historico = df_historico[
+                    df_historico[c_email_hist]
+                    .fillna("")
+                    .astype(str)
+                    .str.strip()
+                    .str.lower()
+                    == EMAIL_NUTRICIONISTA_LOGADA
+                ].copy()
+
+                if not df_historico.empty:
+                    # Aceita tanto 2026-08 em texto quanto uma data real do Sheets.
+                    df_historico["Mes_Parsed"] = pd.to_datetime(
+                        df_historico[c_mes_hist],
+                        errors="coerce"
+                    )
+
+                    df_historico["Quantidade"] = pd.to_numeric(
+                        df_historico[c_nutribooks_hist],
+                        errors="coerce"
+                    ).fillna(0)
+
+                    df_grafico = (
+                        df_historico
+                        .dropna(subset=["Mes_Parsed"])
+                        .sort_values("Mes_Parsed")
+                        [["Mes_Parsed", "Quantidade"]]
+                        .drop_duplicates(
+                            subset=["Mes_Parsed"],
+                            keep="last"
+                        )
+                        .copy()
+                    )
+
+                    if not df_grafico.empty:
+                        df_grafico["Mês/Ano"] = (
+                            df_grafico["Mes_Parsed"]
+                            .dt.strftime("%m/%Y")
+                        )
+
+                        st.bar_chart(
+                            df_grafico.set_index("Mês/Ano")[["Quantidade"]],
+                            height=260
+                        )
+                    else:
+                        st.info(
+                            "Nenhum histórico mensal válido encontrado "
+                            "para exibição do gráfico."
+                        )
+                else:
+                    st.info(
+                        "Nenhum histórico mensal encontrado para "
+                        "a nutricionista logada."
+                    )
+            else:
+                st.error(
+                    "A aba Historico_Nutribooks não possui as colunas "
+                    "esperadas para montar o gráfico."
+                )
         else:
-            st.info("Nenhuma data válida encontrada para exibição do gráfico.")
+            st.info(
+                "Nenhum histórico mensal encontrado para exibição do gráfico."
+            )
 
         st.markdown("---")
         st.subheader("📋 Histórico de Pedidos")
