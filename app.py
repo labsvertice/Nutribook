@@ -28,6 +28,7 @@ st.set_page_config(
 # 0. AUTENTICAÇÃO E IDENTIFICAÇÃO DA NUTRICIONISTA
 # =================================================================================
 
+
 def tela_login():
     """Exibe a tela de login quando não existe uma sessão autenticada."""
 
@@ -39,48 +40,40 @@ def tela_login():
         # CABEÇALHO NUTRIBOOK
         # ============================================================
 
-        if os.path.exists("nutribook_cabecalho.png"):
+        if os.path.exists("cabecalho.png"):
             st.image(
-                "nutribook_cabecalho.png",
+                "cabecalho.png",
                 use_container_width=True
             )
 
         # ============================================================
-        # TÍTULO E TEXTO
+        # TÍTULO
         # ============================================================
 
         st.markdown(
             """
-            <div style="
-                text-align: center;
-                margin-top: 30px;
-                margin-bottom: 20px;
-            ">
-                <h2 style="
-                    color: #112214;
-                    margin: 0 0 10px 0;
-                    font-size: 30px;
-                ">
+            <div style="text-align:center; margin-top:28px; margin-bottom:10px;">
+                <h2 style="color:#112214; margin:0; font-size:30px;">
                     🔐 Acesso ao Nutribook
                 </h2>
-
-                <p style="
-                    color: #334033;
-                    font-size: 16px;
-                    margin: 0;
-                ">
-                    Entre com sua conta Google para acessar o portal do consultório.
-                </p>
             </div>
             """,
             unsafe_allow_html=True
         )
 
+        # Texto simples — evita o problema do <p> aparecer na tela
+        st.markdown(
+            "<div style='text-align:center; color:#334033; font-size:16px; margin-bottom:22px;'>"
+            "Entre com sua conta Google para acessar o portal do consultório."
+            "</div>",
+            unsafe_allow_html=True
+        )
+
         # ============================================================
-        # BOTÃO GOOGLE CENTRALIZADO E MENOR
+        # BOTÃO GOOGLE
         # ============================================================
 
-        col_btn_esq, col_btn, col_btn_dir = st.columns([1, 1.2, 1])
+        _, col_btn, _ = st.columns([1, 1.2, 1])
 
         with col_btn:
             st.button(
@@ -90,20 +83,20 @@ def tela_login():
             )
 
         # ============================================================
-        # RODAPÉ VÉRTICE
+        # RODAPÉ
         # ============================================================
 
         st.markdown(
-            "<div style='height: 40px;'></div>",
+            "<div style='height:40px;'></div>",
             unsafe_allow_html=True
         )
 
-        if os.path.exists("nutribook_rodape.png"):
+        if os.path.exists("rodape.png"):
             st.image(
-                "nutribook_rodape.png",
+                "rodape.png",
                 use_container_width=True
             )
-
+            
 
 def obter_email_usuario_logado():
     """Retorna o e-mail autenticado pelo Google, normalizado."""
