@@ -226,7 +226,7 @@ with st.sidebar:
     else:
         st.title("🍎 Nutribook")
 
-    st.markdown(f"#### Olá, **{CLIENTE_LOGADA["nome"]}**! 👋")
+    st.markdown(f"#### Olá, **{CLIENTE_LOGADA['nome']}**! 👋")
     st.caption("Vamos iniciar o próximo Nutribook?")
 
     col_usuario, col_saida = st.columns([3, 1])
