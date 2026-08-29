@@ -9,9 +9,10 @@ from streamlit_gsheets import GSheetsConnection
 WEBAPP_URL = "https://script.google.com/macros/s/AKfycbz7Pnyk2eCsURm-9-WKlluYJAFK_jj_Zd2FqM3KAJVe5zdNrAoI5ak8nmf_XOC2qxY/exec"
 
 # CONFIGURAÇÕES DA EVOLUTION API (ORACLE CLOUD)
-EVOLUTION_API_URL = "http://163.176.133.204:8080"
-API_KEY = "nutribook_secret_key_2026"
-INSTANCE_NAME = "nutribook"
+# As credenciais ficam protegidas no Secrets do Streamlit Cloud.
+EVOLUTION_API_URL = st.secrets["evolution"]["api_url"]
+API_KEY = st.secrets["evolution"]["api_key"]
+INSTANCE_NAME = st.secrets["evolution"].get("instance", "nutribook")
 
 # =================================================================================
 # 1. CONFIGURAÇÃO DA PÁGINA E CSS
@@ -22,6 +23,41 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# =================================================================================
+# 0. AUTENTICAÇÃO E IDENTIFICAÇÃO DA NUTRICIONISTA
+# =================================================================================
+
+def tela_login():
+    """Exibe a tela de login quando não existe uma sessão autenticada."""
+    col_esq, col_login, col_dir = st.columns([1, 1.1, 1])
+
+    with col_login:
+        if os.path.exists("logo.png"):
+            st.image("logo.png", width=180)
+
+        st.markdown("## 🔐 Acesso ao Nutribook")
+        st.write("Entre com sua conta Google para acessar o portal do consultório.")
+        st.button("Entrar com Google", on_click=st.login)
+
+
+def obter_email_usuario_logado():
+    """Retorna o e-mail autenticado pelo Google, normalizado."""
+    return str(getattr(st.user, "email", "") or "").strip().lower()
+
+
+if not st.user.is_logged_in:
+    tela_login()
+    st.stop()
+
+EMAIL_NUTRICIONISTA_LOGADA = obter_email_usuario_logado()
+NOME_NUTRICIONISTA_LOGADA = str(
+    getattr(st.user, "name", "") or "Nutricionista"
+).strip()
+
+if not EMAIL_NUTRICIONISTA_LOGADA:
+    st.error("Não foi possível identificar o e-mail da conta Google autenticada.")
+    st.stop()
 
 st.markdown(
     """
@@ -71,14 +107,97 @@ st.markdown(
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 
+def normalizar_colunas(df):
+    if df is not None and not df.empty:
+        df = df.copy()
+        df.columns = df.columns.astype(str).str.strip()
+    return df
+
+
 def carregar_dados_planilha():
     try:
         df = conn.read(ttl=0)
-        if df is not None and not df.empty:
-            df.columns = df.columns.astype(str).str.strip()
-        return df
+        return normalizar_colunas(df)
     except Exception:
         return None
+
+
+def carregar_clientes():
+    """Lê exclusivamente a aba Clientes para validar a conta autenticada."""
+    try:
+        df = conn.read(worksheet="Clientes", ttl=0)
+        return normalizar_colunas(df)
+    except Exception:
+        return None
+
+
+def localizar_coluna(df, candidatos):
+    """Encontra uma coluna por correspondência de nome, ignorando maiúsculas/minúsculas."""
+    if df is None or df.empty:
+        return None
+
+    mapa = {str(c).strip().lower(): c for c in df.columns}
+    for candidato in candidatos:
+        chave = str(candidato).strip().lower()
+        if chave in mapa:
+            return mapa[chave]
+    return None
+
+
+def obter_cliente_logada():
+    """Valida o usuário Google contra a aba Clientes."""
+    df = carregar_clientes()
+
+    if df is None or df.empty:
+        st.error("Não foi possível carregar o cadastro de profissionais.")
+        st.stop()
+
+    c_email = localizar_coluna(df, ["E-mail", "Email", "E-mail Nutricionista"])
+    c_nome = localizar_coluna(df, ["Nome"])
+    c_ativo = localizar_coluna(df, ["Ativo"])
+    c_limite = localizar_coluna(df, ["Limite mensal"])
+    c_consumo = localizar_coluna(df, ["Nutribooks no mês"])
+    c_whatsapp = localizar_coluna(df, ["WhatsApp"])
+
+    if not c_email:
+        st.error("A aba Clientes não possui a coluna de e-mail necessária para o login.")
+        st.stop()
+
+    df["__email_login"] = (
+        df[c_email]
+        .fillna("")
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
+
+    encontrados = df[df["__email_login"] == EMAIL_NUTRICIONISTA_LOGADA]
+
+    if encontrados.empty:
+        st.error(
+            f"A conta **{EMAIL_NUTRICIONISTA_LOGADA}** não está cadastrada no Nutribook."
+        )
+        st.info("Entre em contato com o suporte para cadastrar ou liberar seu acesso.")
+        st.stop()
+
+    registro = encontrados.iloc[0]
+    ativo = str(registro[c_ativo]).strip().lower() if c_ativo else "sim"
+
+    if ativo not in {"sim", "true", "1", "ativo", "yes"}:
+        st.error("Seu cadastro está inativo no Nutribook.")
+        st.stop()
+
+    return {
+        "nome": str(registro[c_nome]).strip() if c_nome else NOME_NUTRICIONISTA_LOGADA,
+        "email": EMAIL_NUTRICIONISTA_LOGADA,
+        "ativo": True,
+        "limite": registro[c_limite] if c_limite else "",
+        "consumo": registro[c_consumo] if c_consumo else "",
+        "whatsapp": registro[c_whatsapp] if c_whatsapp else "",
+    }
+
+
+CLIENTE_LOGADA = obter_cliente_logada()
 
 
 @st.cache_data(ttl=15)
@@ -107,8 +226,16 @@ with st.sidebar:
     else:
         st.title("🍎 Nutribook")
 
-    st.markdown("#### Olá, **Jean Victor**! 👋")
+    st.markdown(f"#### Olá, **{CLIENTE_LOGADA["nome"]}**! 👋")
     st.caption("Vamos iniciar o próximo Nutribook?")
+
+    col_usuario, col_saida = st.columns([3, 1])
+    with col_usuario:
+        st.caption(EMAIL_NUTRICIONISTA_LOGADA)
+    with col_saida:
+        if st.button("↪️", help="Sair"):
+            st.logout()
+
     st.divider()
 
     menu = st.radio(
@@ -217,6 +344,8 @@ if menu == "➕ Novo Nutribook":
                                 "fileName": pdf_file.name,
                                 "fileBytes": file_bytes,
                                 "mensagem": mensagem_whatsapp,
+                                "emailNutricionista": EMAIL_NUTRICIONISTA_LOGADA,
+                                "instance": INSTANCE_NAME,
                             }
 
                             response = requests.post(WEBAPP_URL, json=payload, timeout=30)
@@ -251,7 +380,24 @@ elif menu == "📋 Painel Nutribook":
 
     if df_dados is not None and not df_dados.empty:
         df_dados = df_dados.copy()
-        
+
+        # Segurança: o painel mostra somente os registros da nutricionista logada.
+        col_nutri = next(
+            (
+                c
+                for c in df_dados.columns
+                if str(c).strip().lower()
+                in {"e-mail nutricionista", "email nutricionista", "e-mail da nutricionista"}
+            ),
+            None,
+        )
+
+        if col_nutri:
+            df_dados = df_dados[
+                df_dados[col_nutri].fillna("").astype(str).str.strip().str.lower()
+                == EMAIL_NUTRICIONISTA_LOGADA
+            ].copy()
+
         col_status = (
             "Status" if "Status" in df_dados.columns else df_dados.columns[-1]
         )
