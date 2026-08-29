@@ -52,8 +52,16 @@ def tela_login():
 
         st.markdown(
             """
-            <div style="text-align:center; margin-top:28px; margin-bottom:10px;">
-                <h2 style="color:#112214; margin:0; font-size:30px;">
+            <div style="
+                text-align: center;
+                margin-top: 28px;
+                margin-bottom: 10px;
+            ">
+                <h2 style="
+                    color: #112214;
+                    margin: 0;
+                    font-size: 30px;
+                ">
                     🔐 Acesso ao Nutribook
                 </h2>
             </div>
@@ -61,11 +69,21 @@ def tela_login():
             unsafe_allow_html=True
         )
 
-        # Texto simples — evita o problema do <p> aparecer na tela
+        # ============================================================
+        # TEXTO
+        # ============================================================
+
         st.markdown(
-            "<div style='text-align:center; color:#334033; font-size:16px; margin-bottom:22px;'>"
-            "Entre com sua conta Google para acessar o portal do consultório."
-            "</div>",
+            """
+            <div style="
+                text-align: center;
+                color: #334033;
+                font-size: 16px;
+                margin-bottom: 22px;
+            ">
+                Entre com sua conta Google para acessar o portal do consultório.
+            </div>
+            """,
             unsafe_allow_html=True
         )
 
@@ -81,24 +99,25 @@ def tela_login():
                 on_click=st.login,
                 use_container_width=True
             )
-# ============================================================
-# RODAPÉ
-# ============================================================
 
-st.markdown(
-    "<div style='height:40px;'></div>",
-    unsafe_allow_html=True
-)
+        # ============================================================
+        # ESPAÇO
+        # ============================================================
 
-st.write("rodape existe:", os.path.exists("rodape.png"))
+        st.markdown(
+            "<div style='height: 35px;'></div>",
+            unsafe_allow_html=True
+        )
 
-try:
-    st.image(
-        "rodape.png",
-        use_container_width=True
-    )
-except Exception as e:
-    st.warning(f"Rodapé não carregado: {e}")
+        # ============================================================
+        # RODAPÉ VÉRTICE
+        # ============================================================
+
+        if os.path.exists("rodape.png"):
+            st.image(
+                "rodape.png",
+                width=520
+            )
             
 
 def obter_email_usuario_logado():
