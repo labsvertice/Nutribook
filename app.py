@@ -360,8 +360,8 @@ if menu == "➕ Novo Nutribook":
 
         st.subheader("Perfis / Protocolos do Paciente")
         lista_protocolos = [
-            "Fertilidade Feminina",
             "Emagrecimento & Definição",
+            "Fertilidade Feminina",
             "Hipertrofia & Ganho de Massa",
             "Reeducação Alimentar & Saúde Geral",
             "Saúde Intestinal (Disbiose / FODMAPs)",
