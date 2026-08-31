@@ -358,35 +358,26 @@ if menu == "➕ Novo Nutribook":
         with col_email:
             email_paciente = st.text_input("E-mail do Paciente")
 
-        st.subheader("Perfis / Protocolos do Paciente")
-        lista_protocolos = [
-            "Emagrecimento & Definição",
-            "Fertilidade Feminina",
-            "Hipertrofia & Ganho de Massa",
-            "Reeducação Alimentar & Saúde Geral",
-            "Saúde Intestinal (Disbiose / FODMAPs)",
-            "Saúde da Mulher (SOP / Endometriose)",
-            "Controle Metabólico (Diabetes / Colesterol)",
-            "Performance Esportiva",
-            "Alimentação Plant-Based (Veg/Vegano)",
-            "Gestante & Lactante",
-            "Longevidade & Saúde Sênior",
-            "Guia Prático & Orientações Gerais",
-        ]
+     st.subheader("Perfil / Protocolo do Paciente")
 
-        protocolos_selecionados = []
-        col_proto1, col_proto2 = st.columns(2)
-        metade = (len(lista_protocolos) + 1) // 2
-
-        with col_proto1:
-            for p in lista_protocolos[:metade]:
-                if st.checkbox(p, key=p):
-                    protocolos_selecionados.append(p)
-
-        with col_proto2:
-            for p in lista_protocolos[metade:]:
-                if st.checkbox(p, key=p):
-                    protocolos_selecionados.append(p)
+perfil_selecionado = st.radio(
+    "Selecione o perfil principal do Nutribook:",
+    [
+        "Emagrecimento & Definição",
+        "Fertilidade Feminina",
+        "Hipertrofia & Ganho de Massa",
+        "Reeducação Alimentar & Saúde Geral",
+        "Saúde Intestinal (Disbiose / FODMAPs)",
+        "Saúde da Mulher (SOP / Endometriose)",
+        "Controle Metabólico (Diabetes / Colesterol)",
+        "Performance Esportiva",
+        "Alimentação Plant-Based (Veg/Vegano)",
+        "Gestante & Lactante",
+        "Longevidade & Saúde Sênior",
+        "Guia Prático & Orientações Gerais",
+    ],
+    horizontal=False,
+)
 
         st.subheader("Plano Alimentar Base")
         pdf_file = st.file_uploader(
@@ -411,9 +402,7 @@ if menu == "➕ Novo Nutribook":
                                 pdf_file.getvalue()
                             ).decode("utf-8")
                             protocolos_str = (
-                                ", ".join(protocolos_selecionados)
-                                if protocolos_selecionados
-                                else "Padrão"
+                                protocolos_str = perfil_selecionado
                             )
 
                             mensagem_whatsapp = (
