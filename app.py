@@ -358,26 +358,16 @@ if menu == "➕ Novo Nutribook":
         with col_email:
             email_paciente = st.text_input("E-mail do Paciente")
 
-     st.subheader("Perfil / Protocolo do Paciente")
+        st.subheader("Perfil / Protocolo do Paciente")
 
-perfil_selecionado = st.radio(
-    "Selecione o perfil principal do Nutribook:",
-    [
-        "Emagrecimento & Definição",
-        "Fertilidade Feminina",
-        "Hipertrofia & Ganho de Massa",
-        "Reeducação Alimentar & Saúde Geral",
-        "Saúde Intestinal (Disbiose / FODMAPs)",
-        "Saúde da Mulher (SOP / Endometriose)",
-        "Controle Metabólico (Diabetes / Colesterol)",
-        "Performance Esportiva",
-        "Alimentação Plant-Based (Veg/Vegano)",
-        "Gestante & Lactante",
-        "Longevidade & Saúde Sênior",
-        "Guia Prático & Orientações Gerais",
-    ],
-    horizontal=False,
-)
+        perfil_selecionado = st.radio(
+            "Selecione o perfil principal do Nutribook:",
+            [
+                "Fertilidade Feminina",
+                "Emagrecimento & Definição",
+            ],
+            horizontal=False,
+        )
 
         st.subheader("Plano Alimentar Base")
         pdf_file = st.file_uploader(
@@ -401,9 +391,7 @@ perfil_selecionado = st.radio(
                             file_bytes = base64.b64encode(
                                 pdf_file.getvalue()
                             ).decode("utf-8")
-                            protocolos_str = (
-                                protocolos_str = perfil_selecionado
-                            )
+                            protocolos_str = perfil_selecionado
 
                             mensagem_whatsapp = (
                                 f"Olá, *{nome_paciente}*! 🍎✨\n\n"
