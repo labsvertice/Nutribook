@@ -363,8 +363,8 @@ if menu == "➕ Novo Nutribook":
         perfil_selecionado = st.radio(
             "Selecione o perfil principal do Nutribook:",
             [
-                "Fertilidade Feminina",
                 "Emagrecimento & Definição",
+                "Fertilidade Feminina",
             ],
             horizontal=False,
         )
