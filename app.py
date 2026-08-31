@@ -364,7 +364,10 @@ if menu == "➕ Novo Nutribook":
             "Selecione o perfil principal do Nutribook:",
             [
                 "Emagrecimento & Definição",
-                "Fertilidade Feminina",
+                "Perfil A",
+                "Perfil B",
+                "Perfil C",
+                "Perfil D",
             ],
             horizontal=False,
         )
