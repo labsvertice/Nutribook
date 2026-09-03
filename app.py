@@ -297,7 +297,7 @@ def tela_login():
         st.markdown(
             """
             <div style="text-align:center;color:#334033;font-size:16px;margin-bottom:22px;">
-                Entre com seu login e senha para acessar o portal do consultório.
+                Entre com seu login e senha para acessar o portal.
             </div>
             """,
             unsafe_allow_html=True,
