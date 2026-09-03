@@ -188,7 +188,6 @@ def autenticar_nutricionista(login, senha):
     c_login = localizar_coluna(df, ["Login", "Usuário", "Usuario"])
     c_senha = localizar_coluna(df, ["Senha", "Password"])
     c_nutri_id = localizar_coluna(df, ["Nutri_ID", "Nutri ID", "Cliente_ID", "Cliente ID"])
-    c_instancia = localizar_coluna(df, ["Evolution_Instance", "Evolution Instance", "Instancia_Evolution", "Instância_Evolution"])
 
     obrigatorias = {
         "Nome": c_nome,
@@ -197,6 +196,7 @@ def autenticar_nutricionista(login, senha):
         "Ativo": c_ativo,
         "Login": c_login,
         "Senha": c_senha,
+        "Nutri_ID": c_nutri_id,
     }
 
     faltantes = [nome for nome, coluna in obrigatorias.items() if not coluna]
@@ -235,17 +235,9 @@ def autenticar_nutricionista(login, senha):
     email = str(registro[c_email]).strip().lower() if c_email else ""
     whatsapp = str(registro[c_whatsapp]).strip() if c_whatsapp else ""
     nutri_id = str(registro[c_nutri_id]).strip() if c_nutri_id and pd.notna(registro[c_nutri_id]) else ""
-    instancia_cadastrada = str(registro[c_instancia]).strip() if c_instancia and pd.notna(registro[c_instancia]) else ""
 
-    # Instância padrão por nutricionista.
-    # Preferimos Evolution_Instance cadastrada; se vazia, usamos Nutri_ID.
-    # Como fallback legado, usamos o login sanitizado.
-    if instancia_cadastrada:
-        instancia = instancia_cadastrada
-    elif nutri_id:
-        instancia = re.sub(r"[^A-Za-z0-9_-]", "_", nutri_id.strip())
-    else:
-        instancia = "NUTRI_" + re.sub(r"[^A-Za-z0-9_-]", "_", login_normalizado)
+    if not nutri_id:
+        return None, "Este cadastro não possui Nutri_ID."
 
     return {
         "nome": nome,
@@ -255,7 +247,6 @@ def autenticar_nutricionista(login, senha):
         "consumo": registro[c_consumo] if c_consumo else "",
         "login": login_normalizado,
         "nutri_id": nutri_id,
-        "evolution_instance": instancia,
     }, None
 
 
@@ -269,7 +260,6 @@ def limpar_sessao():
         "nutri_consumo",
         "nutri_login",
         "nutri_id",
-        "evolution_instance",
     ]:
         st.session_state.pop(chave, None)
 
@@ -332,7 +322,6 @@ def tela_login():
             st.session_state["nutri_consumo"] = nutricionista["consumo"]
             st.session_state["nutri_login"] = nutricionista["login"]
             st.session_state["nutri_id"] = nutricionista["nutri_id"]
-            st.session_state["evolution_instance"] = nutricionista["evolution_instance"]
             st.rerun()
 
 
@@ -346,7 +335,7 @@ EMAIL_NUTRICIONISTA_LOGADA = st.session_state["nutri_email"]
 WHATSAPP_NUTRICIONISTA_LOGADA = st.session_state.get("nutri_whatsapp", "")
 LOGIN_NUTRICIONISTA_LOGADA = st.session_state.get("nutri_login", "")
 NUTRI_ID_LOGADA = st.session_state.get("nutri_id", "")
-INSTANCE_NAME = st.session_state.get("evolution_instance", "").strip()
+INSTANCE_NAME = NUTRI_ID_LOGADA.strip()
 
 
 # =================================================================================
@@ -631,7 +620,7 @@ if menu == "➕ Novo Nutribook":
     with st.form("form_nutribook", clear_on_submit=True):
         st.subheader("Dados do Paciente")
 
-        col_nome, col_whatsapp, col_email = st.columns(3)
+        col_nome, col_whatsapp = st.columns(2)
 
         with col_nome:
             nome_paciente = st.text_input("Nome do Paciente *")
@@ -642,9 +631,6 @@ if menu == "➕ Novo Nutribook":
                 placeholder="Ex: 5548999999999",
             )
 
-        with col_email:
-            email_paciente = st.text_input("E-mail do Paciente")
-
         st.subheader("Perfil / Protocolo do Paciente")
 
         # Perfis vêm do cadastro da nutricionista na aba Templates.
@@ -652,13 +638,22 @@ if menu == "➕ Novo Nutribook":
         perfis_disponiveis = []
 
         if df_templates is not None and not df_templates.empty:
-            c_email_tpl = localizar_coluna(df_templates, ["E-mail Nutricionista", "Email Nutricionista", "E-mail", "Email"])
+            c_nutri_id_tpl = localizar_coluna(df_templates, ["Nutri_ID", "Nutri ID"])
             c_perfil_tpl = localizar_coluna(df_templates, ["Perfil", "Perfil Clínico", "Perfil Clinico"])
             c_ativo_tpl = localizar_coluna(df_templates, ["Ativo"])
 
-            if c_email_tpl and c_perfil_tpl:
-                email_limpo = df_templates[c_email_tpl].fillna("").astype(str).str.strip().str.lower()
-                dados_tpl = df_templates[email_limpo == EMAIL_NUTRICIONISTA_LOGADA].copy()
+            if c_nutri_id_tpl and c_perfil_tpl:
+                nutri_id_limpo = (
+                    df_templates[c_nutri_id_tpl]
+                    .fillna("")
+                    .astype(str)
+                    .str.strip()
+                    .str.lower()
+                )
+
+                dados_tpl = df_templates[
+                    nutri_id_limpo == NUTRI_ID_LOGADA.strip().lower()
+                ].copy()
 
                 if c_ativo_tpl:
                     dados_tpl = dados_tpl[dados_tpl[c_ativo_tpl].apply(valor_ativo)]
@@ -742,14 +737,11 @@ if menu == "➕ Novo Nutribook":
 
                             payload = {
                                 "nome": nome_paciente,
-                                "email": email_paciente,
                                 "whatsapp": whatsapp_paciente,
-                                "protocolos": perfil_selecionado,
+                                "perfil": perfil_selecionado,
                                 "fileName": pdf_file.name,
-                                "fileBytes": file_bytes,
-                                "mensagem": mensagem_whatsapp,
-                                "instancia": INSTANCE_NAME,
-                                "emailNutricionista": EMAIL_NUTRICIONISTA_LOGADA,
+                                "fileBase64": file_bytes,
+                                "nutriId": NUTRI_ID_LOGADA,
                             }
 
                             response = requests.post(
@@ -766,7 +758,7 @@ if menu == "➕ Novo Nutribook":
                             if (
                                 response.status_code == 200
                                 and isinstance(resposta_json, dict)
-                                and resposta_json.get("status") == "success"
+                                and resposta_json.get("ok") is True
                             ):
                                 st.success(
                                     f"✅ Nutribook para **{nome_paciente}** registrado com sucesso!"
@@ -823,20 +815,15 @@ elif menu == "📋 Painel Nutribook":
         df_dados = df_dados.copy()
 
         # Segurança: o painel mostra somente os registros da nutricionista logada.
-        col_nutri = next(
-            (
-                c
-                for c in df_dados.columns
-                if str(c).strip().lower()
-                in {"e-mail nutricionista", "email nutricionista", "e-mail da nutricionista"}
-            ),
-            None,
+        col_nutri = localizar_coluna(
+            df_dados,
+            ["Nutri_ID", "Nutri ID"]
         )
 
         if col_nutri:
             df_dados = df_dados[
                 df_dados[col_nutri].fillna("").astype(str).str.strip().str.lower()
-                == EMAIL_NUTRICIONISTA_LOGADA
+                == NUTRI_ID_LOGADA.strip().lower()
             ].copy()
 
         col_status = (
@@ -890,9 +877,9 @@ elif menu == "📋 Painel Nutribook":
                 df_historico,
                 ["Mês", "Mes"]
             )
-            c_email_hist = localizar_coluna(
+            c_nutri_hist = localizar_coluna(
                 df_historico,
-                ["E-mail Nutricionista", "E-mail", "Email"]
+                ["Nutri_ID", "Nutri ID"]
             )
             c_nutribooks_hist = localizar_coluna(
                 df_historico,
@@ -901,17 +888,17 @@ elif menu == "📋 Painel Nutribook":
 
             if (
                 c_mes_hist
-                and c_email_hist
+                and c_nutri_hist
                 and c_nutribooks_hist
             ):
 
                 df_historico = df_historico[
-                    df_historico[c_email_hist]
+                    df_historico[c_nutri_hist]
                     .fillna("")
                     .astype(str)
                     .str.strip()
                     .str.lower()
-                    == EMAIL_NUTRICIONISTA_LOGADA
+                    == NUTRI_ID_LOGADA.strip().lower()
                 ].copy()
 
                 if not df_historico.empty:
@@ -1067,14 +1054,6 @@ elif menu == "📋 Painel Nutribook":
         c_nome = next(
             (c for c in df_exibicao.columns if "nome" in c.lower()), None
         )
-        c_email = next(
-            (
-                c
-                for c in df_exibicao.columns
-                if "email" in c.lower() or "e-mail" in c.lower()
-            ),
-            None,
-        )
         c_whatsapp = next(
             (
                 c
@@ -1109,8 +1088,6 @@ elif menu == "📋 Painel Nutribook":
             mapa_colunas[c_data] = "Carimbo de data/hora"
         if c_nome:
             mapa_colunas[c_nome] = "Nome do Paciente"
-        if c_email:
-            mapa_colunas[c_email] = "E-mail do Paciente"
         if c_whatsapp:
             mapa_colunas[c_whatsapp] = "WhatsApp do Paciente"
         if c_perfil:
@@ -1165,7 +1142,7 @@ elif menu == "📱 Conectar WhatsApp":
             "⚠️ Nenhuma instância de WhatsApp foi definida para esta nutricionista."
         )
         st.info(
-            "Preencha Evolution_Instance no cadastro ou informe um Nutri_ID para o sistema gerar a instância automaticamente."
+            "Verifique o Nutri_ID no cadastro da nutricionista."
         )
 
     elif not evolution_configurada():
