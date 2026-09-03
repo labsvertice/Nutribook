@@ -304,7 +304,7 @@ def tela_login():
         )
 
         with st.form("form_login"):
-            login = st.text_input("Login", placeholder="Ex: maria_nutri")
+            login = st.text_input("Login", placeholder="Ex: Digite seu login")
             senha = st.text_input("Senha", type="password", placeholder="Digite sua senha")
             entrar = st.form_submit_button("ENTRAR", use_container_width=True)
 
