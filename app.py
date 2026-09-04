@@ -634,6 +634,7 @@ if menu == "➕ Novo Nutribook":
         st.subheader("Perfil / Protocolo do Paciente")
 
         # Perfis vêm do cadastro da nutricionista na aba Templates.
+st.caption("VERSÃO NOVA DO APP — 04/09/2026")
 df_templates = carregar_dados_planilha("Templates")
 perfis_disponiveis = []
 
