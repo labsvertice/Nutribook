@@ -634,37 +634,63 @@ if menu == "➕ Novo Nutribook":
         st.subheader("Perfil / Protocolo do Paciente")
 
         # Perfis vêm do cadastro da nutricionista na aba Templates.
-        df_templates = carregar_dados_planilha("Templates")
-        perfis_disponiveis = []
+df_templates = carregar_dados_planilha("Templates")
+perfis_disponiveis = []
 
-        if df_templates is not None and not df_templates.empty:
-            c_nutri_id_tpl = localizar_coluna(df_templates, ["Nutri_ID", "Nutri ID"])
-            c_perfil_tpl = localizar_coluna(df_templates, ["Perfil", "Perfil Clínico", "Perfil Clinico"])
-            c_ativo_tpl = localizar_coluna(df_templates, ["Ativo"])
+if df_templates is not None and not df_templates.empty:
 
-            if c_nutri_id_tpl and c_perfil_tpl:
-                nutri_id_limpo = (
-                    df_templates[c_nutri_id_tpl]
-                    .fillna("")
-                    .astype(str)
-                    .str.strip()
-                    .str.lower()
-                )
+    c_nutri_id_tpl = localizar_coluna(
+        df_templates,
+        ["Nutri_ID", "Nutri ID"]
+    )
 
-                dados_tpl = df_templates[
-                    nutri_id_limpo == NUTRI_ID_LOGADA.strip().lower()
-                ].copy()
+    c_perfil_tpl = localizar_coluna(
+        df_templates,
+        ["Perfil", "Perfil Clínico", "Perfil Clinico"]
+    )
 
-                if c_ativo_tpl:
-                    dados_tpl = dados_tpl[dados_tpl[c_ativo_tpl].apply(valor_ativo)]
+    c_ativo_tpl = localizar_coluna(
+        df_templates,
+        ["Ativo"]
+    )
 
-                perfis_disponiveis = sorted(
-                    [
-                        str(v).strip()
-                        for v in dados_tpl[c_perfil_tpl].dropna().unique()
-                        if str(v).strip()
-                    ]
-                )
+    if c_nutri_id_tpl and c_perfil_tpl:
+
+        nutri_id_limpo = (
+            df_templates[c_nutri_id_tpl]
+            .fillna("")
+            .astype(str)
+            .str.strip()
+            .str.lower()
+        )
+
+        dados_tpl = df_templates[
+            nutri_id_limpo
+            == NUTRI_ID_LOGADA.strip().lower()
+        ].copy()
+
+        if (
+            c_ativo_tpl
+            and c_ativo_tpl in dados_tpl.columns
+        ):
+            dados_tpl = dados_tpl[
+                dados_tpl[c_ativo_tpl]
+                .apply(valor_ativo)
+            ].copy()
+
+        if (
+            c_perfil_tpl
+            and c_perfil_tpl in dados_tpl.columns
+        ):
+            perfis_disponiveis = sorted(
+                [
+                    str(v).strip()
+                    for v in dados_tpl[c_perfil_tpl]
+                    .dropna()
+                    .unique()
+                    if str(v).strip()
+                ]
+            )
 
         if perfis_disponiveis:
             perfil_selecionado = st.radio(
