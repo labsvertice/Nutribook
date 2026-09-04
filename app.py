@@ -674,9 +674,14 @@ if menu == "➕ Novo Nutribook":
             )
         else:
             st.warning(
-                "Nenhum perfil/template ativo foi cadastrado para esta nutricionista. "
-                "Cadastre a aba Templates antes de gerar o Nutribook."
+                "⚠️ Seu cadastro ainda não possui perfis configurados."
             )
+        
+            st.info(
+                "Para criar um Nutribook, fale com o administrador "
+                "para cadastrar os perfis dos seus pacientes."
+            )
+        
             perfil_selecionado = ""
 
         st.subheader("Plano Alimentar Base")
